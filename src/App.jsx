@@ -593,7 +593,7 @@ export default function App() {
     <div className="shell">
       <header className="bar">
         <div className="brand">
-          <span className="logo" aria-hidden="true"><i /><i /><i /><i /></span>
+          <span className="logo" aria-hidden="true"><svg viewBox="0 0 64 64" width="26" height="26"><rect x="4" y="6" width="56" height="15" rx="5" fill="#4285F4" /><rect x="4" y="24.5" width="56" height="15" rx="5" fill="#EA4335" /><rect x="4" y="43" width="56" height="15" rx="5" fill="#34A853" /><g fill="#fff"><circle cx="14" cy="13.5" r="3" /><circle cx="14" cy="32" r="3" /><circle cx="14" cy="50.5" r="3" /></g><g fill="#fff" opacity=".75"><rect x="24" y="12" width="22" height="3.4" rx="1.7" /><rect x="24" y="30.3" width="22" height="3.4" rx="1.7" /><rect x="24" y="48.8" width="22" height="3.4" rx="1.7" /></g></svg></span>
           <h1>Cloud Shell Hub</h1>
         </div>
         <nav className="tabs" role="tablist">

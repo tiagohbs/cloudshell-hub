@@ -19,6 +19,7 @@ function createWindow() {
     minHeight: 520,
     backgroundColor: '#0e1116',
     title: 'Cloud Shell Hub',
+    icon: path.join(__dirname, 'icon.png'),
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),

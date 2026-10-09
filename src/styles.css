@@ -396,3 +396,6 @@ button.primary.danger:hover:not(:disabled) { filter: brightness(.92); }
 .helpdots { display: flex; gap: 5px; flex-wrap: wrap; max-width: 130px; }
 .helpdots button { width: 8px; height: 8px; min-width: 0; padding: 0; border-radius: 50%; background: var(--line); border: none; }
 .helpdots button.on { background: var(--accent); }
+
+.logo { display: inline-flex; width: 26px; height: 26px; grid-template-columns: none; gap: 0; }
+.logo svg { display: block; }
