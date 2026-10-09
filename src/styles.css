@@ -412,3 +412,9 @@ input.switch:checked::after { transform: translateX(18px); }
 input.switch:disabled { opacity: .5; }
 .radiorow { display: grid; gap: 8px; font-size: 13.5px; color: var(--text2); padding-left: 2px; }
 .radiorow label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.askbox { width: min(540px, 100%); }
+.dialog label.askcheck { display: flex; flex-direction: row; align-items: center; gap: 10px; color: var(--text2); font-size: 13.5px; cursor: pointer; }
+.dialog label.askcheck input { width: 18px; height: 18px; padding: 0; margin: 0; flex: none; accent-color: var(--accent); }
+.askacts { flex-wrap: nowrap; }
+.askacts button { white-space: nowrap; }
+@media (max-width: 560px) { .askacts { flex-wrap: wrap; } }
