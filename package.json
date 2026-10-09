@@ -15,6 +15,7 @@
     "files": [
       "dist/**",
       "electron/**",
+      "skill/cloudshell-hub/**",
       "package.json"
     ],
     "win": {
