@@ -1,0 +1,41 @@
+{
+  "name": "cloudshell-hub",
+  "version": "0.1.0",
+  "description": "Launcher visual para varias contas do Google Cloud Shell",
+  "main": "electron/main.js",
+  "scripts": {
+    "build": "vite build",
+    "start": "vite build && electron .",
+    "dev": "vite build --watch",
+    "dist": "vite build && electron-builder --win portable"
+  },
+  "build": {
+    "appId": "dev.tiago.cloudshellhub",
+    "productName": "Cloud Shell Hub",
+    "files": [
+      "dist/**",
+      "electron/**",
+      "package.json"
+    ],
+    "win": {
+      "target": "portable"
+    },
+    "asarUnpack": [
+      "node_modules/@lydell/**"
+    ]
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "@xterm/xterm": "^5.5.0",
+    "@xterm/addon-fit": "^0.10.0",
+    "@lydell/node-pty": "1.2.0-beta.15",
+    "tar": "^7.4.3"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "electron": "^33.4.11",
+    "electron-builder": "^25.1.8",
+    "vite": "^5.4.11"
+  }
+}
