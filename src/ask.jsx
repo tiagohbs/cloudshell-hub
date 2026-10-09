@@ -34,7 +34,7 @@ export function AskHost() {
         {q.check && <label className="askcheck"><input type="checkbox" checked={chk} onChange={(e) => setChk(e.target.checked)} /> {q.check.label}</label>}
         <div className="actions askacts">
           <button onClick={() => done(false)}>{q.cancel || 'Cancelar'}</button>
-          {q.extra && <button onClick={() => done('extra')}>{q.extra}</button>}
+          {q.extra && <button className={q.extraDanger ? 'askdanger' : ''} onClick={() => done('extra')}>{q.extra}</button>}
           <button ref={okRef} className={q.danger ? 'primary danger' : 'primary'} onClick={() => done(true)}>{q.ok || 'OK'}</button>
         </div>
       </div>

@@ -501,7 +501,7 @@ export default function App() {
   useEffect(() => {
     if (!window.appctl) return undefined;
     return window.appctl.onCloseAsk(async () => {
-      const r = await ask({ title: 'Fechar o Cloud Shell Hub?', text: 'Minimizar para a bandeja deixa o app em segundo plano, com os terminais abertos. Fechar de vez encerra o app e os terminais.', ok: 'Minimizar para a bandeja', extra: 'Fechar de vez', check: { label: 'Sempre perguntar', value: true } });
+      const r = await ask({ title: 'Fechar o Cloud Shell Hub?', text: 'Minimizar para a bandeja deixa o app em segundo plano, com os terminais abertos. Fechar de vez encerra o app e os terminais.', ok: 'Minimizar para a bandeja', extra: 'Fechar de vez', extraDanger: true, check: { label: 'Sempre perguntar', value: true } });
       if (!r) return;
       const choice = r === true ? 'tray' : 'quit';
       if (!askChecked()) await window.appctl.setSettings({ closeAction: choice });

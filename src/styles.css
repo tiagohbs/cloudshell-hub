@@ -418,3 +418,5 @@ input.switch:disabled { opacity: .5; }
 .askacts { flex-wrap: nowrap; }
 .askacts button { white-space: nowrap; }
 @media (max-width: 560px) { .askacts { flex-wrap: wrap; } }
+button.askdanger { background: var(--bad-bg); border-color: var(--bad-line); color: var(--bad-text); font-weight: 600; }
+button.askdanger:hover:not(:disabled) { background: var(--bad); border-color: var(--bad); color: #fff; }
