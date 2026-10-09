@@ -378,3 +378,21 @@ button.round.on { background: var(--blue-bg); color: var(--blue-text); border-co
 .askacts { flex-wrap: wrap; margin-top: 4px; }
 button.primary.danger { background: var(--bad); border-color: var(--bad); color: #fff; }
 button.primary.danger:hover:not(:disabled) { filter: brightness(.92); }
+
+/* janela de ajuda arrastável (não bloqueia o app) */
+.helpwin { position: fixed; z-index: 55; width: 380px; max-width: calc(100vw - 16px); background: var(--panel); border: 1px solid var(--line); border-radius: 20px; box-shadow: var(--shadow); display: flex; flex-direction: column; overflow: hidden; }
+.helphead { display: flex; align-items: center; gap: 8px; padding: 12px 12px 10px 16px; cursor: grab; user-select: none; touch-action: none; border-bottom: 1px solid var(--line); }
+.helphead:active { cursor: grabbing; }
+.helphead strong { font-size: 15px; font-weight: 600; }
+.helpgrip { color: var(--muted); font-size: 16px; line-height: 1; }
+.helptopics { display: flex; gap: 6px; padding: 10px 16px 0; flex-wrap: wrap; }
+.helptopics button { height: 28px; padding: 0 12px; font-size: 12.5px; border-radius: 14px; background: var(--bg); color: var(--muted); border-color: transparent; }
+.helptopics button.on { background: var(--blue-bg); color: var(--blue-text); font-weight: 600; }
+.helpbody { padding: 14px 16px 6px; min-height: 150px; }
+.helpstep { font-size: 12px; color: var(--muted); }
+.helpbody h3 { margin: 4px 0 8px; font-size: 17px; font-weight: 600; }
+.helpbody p { margin: 0; font-size: 14px; line-height: 1.55; color: var(--text2); }
+.helpfoot { display: flex; align-items: center; gap: 8px; padding: 10px 16px 14px; }
+.helpdots { display: flex; gap: 5px; flex-wrap: wrap; max-width: 130px; }
+.helpdots button { width: 8px; height: 8px; min-width: 0; padding: 0; border-radius: 50%; background: var(--line); border: none; }
+.helpdots button.on { background: var(--accent); }

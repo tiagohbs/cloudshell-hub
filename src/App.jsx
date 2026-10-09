@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Workspace from './Terminals.jsx';
 import Projects from './Projects.jsx';
 import { ask, AskHost } from './ask.jsx';
+import Help from './Help.jsx';
 import { Meter, fmtDur, fmtGB, fmtHours, WEEK_LIMIT_H } from './format.jsx';
 
 export function maskEmail(e) {
@@ -464,6 +465,8 @@ export default function App() {
   const [states, setStates] = useState({});
   const [adding, setAdding] = useState(false);
   const [tab, setTab] = useState('contas');
+  const [help, setHelp] = useState(null);   // null = fechada; senão o tópico
+  useEffect(() => { setHelp((h) => (h ? tab : h)); }, [tab]);
   const [panes, setPanes] = useState([]);
   const [vms, setVms] = useState({});
   const [mets, setMets] = useState({});
@@ -606,6 +609,7 @@ export default function App() {
             <button className="round" onClick={() => window.cs.webShell()} aria-label="Abrir o Cloud Shell no navegador" title="Abrir o Cloud Shell no navegador"><Globe /></button>
             <button className="round" onClick={reload} aria-label="Verificar todas as contas" title="Verificar todas as contas"><Refresh /></button>
           </>}
+          <button className={`round${help ? ' on' : ''}`} onClick={() => setHelp(help ? null : tab)} aria-label="Ajuda desta aba" title="Ajuda desta aba" aria-expanded={!!help}><b style={{ fontSize: 17, fontWeight: 600 }}>?</b></button>
           <button className="round" onClick={() => setTheme(nextTheme[theme])} aria-label={themeLabel} title={themeLabel}>{theme === 'dark' ? <Moon /> : theme === 'light' ? <Sun /> : <Auto />}</button>
           <button className={`round${notesOpen ? ' on' : ''}`} onClick={() => setNotesOpen(!notesOpen)} aria-label="Avisos e erros" title="Avisos e erros" aria-expanded={notesOpen}>
             <Bell />
@@ -663,6 +667,7 @@ export default function App() {
       </div>
 
       <AskHost />
+      {help && <Help topic={help} onClose={() => setHelp(null)} />}
       {adding && <AddDialog onClose={() => setAdding(false)} onDone={reload} toast={showToast} />}
       {toast && toast.note && (
         <div className={`toast ${toast.kind}`} role="alert">
