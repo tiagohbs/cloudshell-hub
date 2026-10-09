@@ -3,6 +3,8 @@ import React, { useEffect, useRef, useState } from 'react';
 // Substitui confirm() do navegador por uma janela no tema do app.
 // ask({ title, text, ok, cancel, danger, extra }) -> Promise: true | 'extra' | false
 let push = null;
+let lastChecked = false;
+export const askChecked = () => lastChecked;
 export function ask(opts) {
   return new Promise((resolve) => {
     if (!push) { resolve(false); return; }
@@ -13,9 +15,10 @@ export function ask(opts) {
 export function AskHost() {
   const [q, setQ] = useState(null);
   const okRef = useRef();
-  useEffect(() => { push = (o) => setQ(o); return () => { push = null; }; }, []);
+  const [chk, setChk] = useState(false);
+  useEffect(() => { push = (o) => { setChk(!!(o.check && o.check.value)); setQ(o); }; return () => { push = null; }; }, []);
   useEffect(() => { if (q && okRef.current) okRef.current.focus(); }, [q]);
-  const done = (v) => { const r = q.resolve; setQ(null); r(v); };
+  const done = (v) => { const r = q.resolve; lastChecked = chk; setQ(null); r(v); };
   useEffect(() => {
     if (!q) return undefined;
     const onKey = (e) => { if (e.key === 'Escape') { const r = q.resolve; setQ(null); r(false); } };
@@ -28,6 +31,7 @@ export function AskHost() {
       <div className="dialog askbox" role="alertdialog" aria-modal="true" aria-label={q.title}>
         <h2>{q.title || 'Confirmar'}</h2>
         {q.text && <div className="asktext">{q.text}</div>}
+        {q.check && <label className="askcheck"><input type="checkbox" checked={chk} onChange={(e) => setChk(e.target.checked)} /> {q.check.label}</label>}
         <div className="actions askacts">
           <button onClick={() => done(false)}>{q.cancel || 'Cancelar'}</button>
           {q.extra && <button onClick={() => done('extra')}>{q.extra}</button>}

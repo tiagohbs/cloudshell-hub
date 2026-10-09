@@ -64,3 +64,11 @@ contextBridge.exposeInMainWorld('clip', {
   read: call('clip:read'),
   write: (t) => ipcRenderer.send('clip:write', t)
 });
+
+contextBridge.exposeInMainWorld('appctl', {
+  getSettings: call('app:getSettings'),
+  setSettings: call('app:setSettings'),
+  closeChoice: (c) => ipcRenderer.send('app:close-choice', c),
+  onCloseAsk: (cb) => { const h = () => cb(); ipcRenderer.on('app:close-ask', h); return () => ipcRenderer.removeListener('app:close-ask', h); },
+  onSettings: (cb) => { const h = (_e, s) => cb(s); ipcRenderer.on('app:settings', h); return () => ipcRenderer.removeListener('app:settings', h); }
+});

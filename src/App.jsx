@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Workspace from './Terminals.jsx';
 import Projects from './Projects.jsx';
-import { ask, AskHost } from './ask.jsx';
+import { ask, askChecked, AskHost } from './ask.jsx';
 import Help from './Help.jsx';
 import { Meter, fmtDur, fmtGB, fmtHours, WEEK_LIMIT_H } from './format.jsx';
 
@@ -86,6 +86,38 @@ const Moon = () => (
 const Auto = () => (
   <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 3v18" /><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor" /></svg>
 );
+
+
+const Gear = () => (
+  <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" /></svg>
+);
+
+function SettingsPop({ onClose }) {
+  const [mode, setMode] = useState(null);
+  useEffect(() => {
+    if (!window.appctl) return undefined;
+    window.appctl.getSettings().then((r) => setMode(r.closeAction));
+    return window.appctl.onSettings((x) => setMode(x.closeAction));
+  }, []);
+  const change = (m) => { setMode(m); window.appctl.setSettings({ closeAction: m }); };
+  const ask_ = mode === 'ask';
+  return (
+    <section className="settingspop" role="dialog" aria-label="Configurações">
+      <div className="noteshead"><h3>Ao fechar a janela</h3><button className="xbtn" aria-label="Fechar" onClick={onClose}><X /></button></div>
+      <label className="switchrow">
+        <span>Sempre perguntar</span>
+        <input type="checkbox" role="switch" className="switch" checked={ask_} disabled={mode == null} onChange={(e) => change(e.target.checked ? 'ask' : 'tray')} />
+      </label>
+      {!ask_ && mode != null && (
+        <div className="radiorow">
+          <label><input type="radio" name="closeact" checked={mode === 'tray'} onChange={() => change('tray')} /> Minimizar para a bandeja</label>
+          <label><input type="radio" name="closeact" checked={mode === 'quit'} onChange={() => change('quit')} /> Fechar de vez</label>
+        </div>
+      )}
+      <p className="hint">Na bandeja, o app continua rodando com os terminais abertos. Para sair de verdade, use o ícone da bandeja e clique em Sair.</p>
+    </section>
+  );
+}
 
 function NotesPanel({ notes, onDismiss, onClear, onClose, toast }) {
   const [open, setOpen] = useState(null);
@@ -465,6 +497,17 @@ export default function App() {
   const [states, setStates] = useState({});
   const [adding, setAdding] = useState(false);
   const [tab, setTab] = useState('contas');
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  useEffect(() => {
+    if (!window.appctl) return undefined;
+    return window.appctl.onCloseAsk(async () => {
+      const r = await ask({ title: 'Fechar o Cloud Shell Hub?', text: 'Minimizar para a bandeja deixa o app em segundo plano, com os terminais abertos. Fechar de vez encerra o app e os terminais.', ok: 'Minimizar para a bandeja', extra: 'Fechar de vez', check: { label: 'Sempre perguntar', value: true } });
+      if (!r) return;
+      const choice = r === true ? 'tray' : 'quit';
+      if (!askChecked()) await window.appctl.setSettings({ closeAction: choice });
+      window.appctl.closeChoice(choice);
+    });
+  }, []);
   const [help, setHelp] = useState(null);   // null = fechada; senão o tópico
   useEffect(() => { setHelp((h) => (h ? tab : h)); }, [tab]);
   const [panes, setPanes] = useState([]);
@@ -611,6 +654,7 @@ export default function App() {
           </>}
           <button className={`round${help ? ' on' : ''}`} onClick={() => setHelp(help ? null : tab)} aria-label="Ajuda desta aba" title="Ajuda desta aba" aria-expanded={!!help}><b style={{ fontSize: 17, fontWeight: 600 }}>?</b></button>
           <button className="round" onClick={() => setTheme(nextTheme[theme])} aria-label={themeLabel} title={themeLabel}>{theme === 'dark' ? <Moon /> : theme === 'light' ? <Sun /> : <Auto />}</button>
+          <button className={`round${settingsOpen ? ' on' : ''}`} onClick={() => setSettingsOpen(!settingsOpen)} aria-label="Configurações" title="Configurações" aria-expanded={settingsOpen}><Gear /></button>
           <button className={`round${notesOpen ? ' on' : ''}`} onClick={() => setNotesOpen(!notesOpen)} aria-label="Avisos e erros" title="Avisos e erros" aria-expanded={notesOpen}>
             <Bell />
             {notes.length > 0 && <span className="bellbadge">{notes.length}</span>}
@@ -618,6 +662,7 @@ export default function App() {
           <button className="primary" onClick={() => setAdding(true)}>+ Adicionar conta</button>
         </div>
       </header>
+      {settingsOpen && <SettingsPop onClose={() => setSettingsOpen(false)} />}
       {notesOpen && <NotesPanel notes={notes} onDismiss={dismissNote} onClear={clearNotes} onClose={() => setNotesOpen(false)} toast={showToast} />}
 
       <div className="page" hidden={tab !== 'contas'}>

@@ -1,5 +1,6 @@
-const { app, BrowserWindow, ipcMain, clipboard, shell, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, clipboard, shell, Menu, Tray, nativeImage } = require('electron');
 const path = require('path');
+const fs = require('fs');
 const cs = require('./cs');
 const term = require('./term');
 const proj = require('./projects');
@@ -10,6 +11,49 @@ const errors = require('./errors');
 const tasks = require('./tasks');
 
 let win = null;
+let tray = null;
+let quitting = false;
+
+// ---------- preferências do app (userData/settings.json) ----------
+const settingsFile = () => path.join(app.getPath('userData'), 'settings.json');
+function getSettings() {
+  try { const s = JSON.parse(fs.readFileSync(settingsFile(), 'utf8')); return { closeAction: ['ask', 'tray', 'quit'].includes(s.closeAction) ? s.closeAction : 'ask' }; }
+  catch { return { closeAction: 'ask' }; }
+}
+function setSettings(patch) {
+  const s = { ...getSettings(), ...patch };
+  try { fs.mkdirSync(path.dirname(settingsFile()), { recursive: true }); fs.writeFileSync(settingsFile(), JSON.stringify(s, null, 2)); } catch { /* sem permissão: segue com o valor em memória */ }
+  buildTrayMenu();
+  send('app:settings', s);
+  return s;
+}
+
+// ---------- bandeja do sistema ----------
+function showWindow() {
+  if (!win || win.isDestroyed()) { createWindow(); return; }
+  if (win.isMinimized()) win.restore();
+  win.show(); win.focus();
+}
+function quitApp() { quitting = true; app.quit(); }
+function buildTrayMenu() {
+  if (!tray) return;
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: 'Abrir Cloud Shell Hub', click: showWindow },
+    { type: 'separator' },
+    { label: 'Sempre perguntar ao fechar', type: 'checkbox', checked: getSettings().closeAction === 'ask', click: (i) => setSettings({ closeAction: i.checked ? 'ask' : 'tray' }) },
+    { type: 'separator' },
+    { label: 'Sair', click: quitApp }
+  ]));
+}
+function ensureTray() {
+  if (tray) return;
+  const img = nativeImage.createFromPath(path.join(__dirname, 'icon.png')).resize({ width: 16, height: 16 });
+  tray = new Tray(img);
+  tray.setToolTip('Cloud Shell Hub (terminais continuam abertos)');
+  tray.on('click', showWindow);
+  buildTrayMenu();
+}
+function hideToTray() { ensureTray(); if (win) win.hide(); }
 
 function createWindow() {
   win = new BrowserWindow({
@@ -31,6 +75,14 @@ function createWindow() {
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https:\/\//.test(url)) shell.openExternal(url);
     return { action: 'deny' };
+  });
+  win.on('close', (e) => {
+    if (quitting) return;
+    const act = getSettings().closeAction;
+    if (act === 'quit') return;
+    e.preventDefault();
+    if (act === 'tray') hideToTray();
+    else { showWindow(); send('app:close-ask'); }
   });
   win.on('closed', () => { term.killAll(); win = null; });
   win.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
@@ -113,6 +165,11 @@ ipcMain.on('term:write', (_e, id, data) => term.write(id, data));
 ipcMain.on('term:resize', (_e, id, cols, rows) => term.resize(id, cols, rows));
 ipcMain.on('term:kill', (_e, id) => term.kill(id));
 
+// preferências e fechamento
+ipcMain.handle('app:getSettings', () => getSettings());
+ipcMain.handle('app:setSettings', (_e, patch) => setSettings({ closeAction: patch && patch.closeAction }));
+ipcMain.on('app:close-choice', (_e, choice) => { if (choice === 'tray') hideToTray(); else if (choice === 'quit') quitApp(); });
+
 // area de transferencia
 ipcMain.handle('clip:read', () => clipboard.readText());
 ipcMain.on('clip:write', (_e, text) => clipboard.writeText(String(text || '')));
@@ -122,5 +179,5 @@ app.whenReady().then(() => {
   createWindow();
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
-app.on('before-quit', () => term.killAll());
+app.on('before-quit', () => { quitting = true; term.killAll(); });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
