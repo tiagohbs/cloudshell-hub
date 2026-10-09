@@ -12,6 +12,9 @@
   "build": {
     "appId": "dev.tiago.cloudshellhub",
     "productName": "Cloud Shell Hub",
+    "directories": {
+      "output": "release"
+    },
     "files": [
       "dist/**",
       "electron/**",
