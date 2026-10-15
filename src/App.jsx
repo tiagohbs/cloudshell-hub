@@ -92,7 +92,41 @@ const Gear = () => (
   <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" /></svg>
 );
 
-function SettingsPop({ onClose }) {
+// Tela de boas-vindas: aparece quando o app abre do zero (não ao voltar da bandeja), a menos que o usuário peça para não exibir.
+function Welcome({ onClose }) {
+  const [hide, setHide] = useState(false);
+  const close = () => { if (hide && window.appctl) window.appctl.setSettings({ hideWelcome: true }); onClose(); };
+  useEffect(() => {
+    const k = (e) => { if (e.key === 'Escape') close(); };
+    window.addEventListener('keydown', k);
+    return () => window.removeEventListener('keydown', k);
+  });
+  return (
+    <div className="overlay" role="presentation">
+      <div className="dialog welcome" role="dialog" aria-modal="true" aria-label="Boas-vindas">
+        <h2>Bem-vindo ao Cloud Shell Hub</h2>
+        <p className="hint" style={{ margin: 0 }}>Leia antes de iniciar as máquinas pelo aplicativo:</p>
+        <ol className="welsteps">
+          <li><b>Aceite os termos no Google, uma vez por conta.</b> Entre em <a href="https://shell.cloud.google.com" target="_blank" rel="noreferrer">shell.cloud.google.com</a> com cada conta, aceite os termos e autorize o uso das máquinas virtuais do Google. Sem isso o app não consegue iniciar a VM. Na primeira vez o Google também pede uma validação manual.</li>
+          <li><b>Adicione as contas.</b> Use <i>Adicionar conta</i> (ou o cadastro em lote) e conclua o login de cada uma. Cada conta abre no seu próprio perfil do Chrome, então não mistura sessões.</li>
+          <li><b>Confira o que precisa estar instalado:</b> Google Cloud CLI (<code>gcloud</code>) e o Cliente OpenSSH do Windows (<code>ssh.exe</code>).</li>
+          <li><b>Respeite as cotas.</b> O Cloud Shell dá cerca de 50 horas de VM por semana e o Gemini tem cota própria. O cartão da conta mostra os dois e o app não delega para conta sem cota.</li>
+          <li><b>Cadastre seu projeto</b> na aba <i>Projetos</i>. Ele é copiado do PC para a VM sem Git, e os resultados voltam para uma pasta separada: nada altera seu projeto sem você aplicar.</li>
+          <li><b>Use com um orquestrador.</b> O botão <i>Instalar skill</i> ensina o Claude (ou outro agente) a delegar tarefas pelo comando <code>cshub</code>.</li>
+          <li><b>Fechar a janela</b> pode minimizar o app para a bandeja, mantendo terminais e avisos ativos.</li>
+        </ol>
+        <p className="hint" style={{ margin: 0 }}>Usar várias contas para somar cotas pode ferir os termos do Google. O uso e o risco são seus. Contas e projetos ficam só neste computador.</p>
+        <label className="welcheck"><input type="checkbox" checked={hide} onChange={(e) => setHide(e.target.checked)} /> Não exibir novamente</label>
+        <div className="actions">
+          <button className="ghost" onClick={() => window.open('https://shell.cloud.google.com', '_blank')}>Abrir o Cloud Shell</button>
+          <button className="primary" onClick={close}>Entendi</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SettingsPop({ onClose, onWelcome }) {
   const [mode, setMode] = useState(null);
   const [notify, setNotify] = useState(true);
   useEffect(() => {
@@ -123,6 +157,7 @@ function SettingsPop({ onClose }) {
         <input type="checkbox" role="switch" className="switch" checked={notify} onChange={(e) => changeNotify(e.target.checked)} />
       </label>
       <button className="ghost" style={{ justifySelf: 'start' }} onClick={() => window.appctl.testNotify()}>Testar aviso</button>
+      <button className="ghost" style={{ justifySelf: 'start' }} onClick={() => { onClose(); onWelcome(); }}>Rever primeiros passos</button>
       <p className="hint">O aviso só aparece se o app estiver aberto ou na bandeja. Falhas também ficam no sino, com o código para rastreio.</p>
     </section>
   );
@@ -651,6 +686,11 @@ export default function App() {
   const [batch, setBatch] = useState(false);
   const [tab, setTab] = useState('contas');
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [welcome, setWelcome] = useState(false);
+  useEffect(() => {
+    if (!window.appctl) return;
+    window.appctl.getSettings().then((r) => { if (r && r.hideWelcome !== true) setWelcome(true); }).catch(() => {});
+  }, []);
   useEffect(() => {
     if (!window.appctl) return undefined;
     return window.appctl.onCloseAsk(async () => {
@@ -819,7 +859,7 @@ export default function App() {
           <button className="primary" onClick={() => setAdding(true)}>+ Adicionar conta</button>
         </div>
       </header>
-      {settingsOpen && <SettingsPop onClose={() => setSettingsOpen(false)} />}
+      {settingsOpen && <SettingsPop onClose={() => setSettingsOpen(false)} onWelcome={() => setWelcome(true)} />}
       {notesOpen && <NotesPanel notes={notes} onDismiss={dismissNote} onClear={clearNotes} onClose={() => setNotesOpen(false)} toast={showToast} />}
 
       <div className="page" hidden={tab !== 'contas'}>
@@ -869,6 +909,7 @@ export default function App() {
       </div>
 
       <AskHost />
+      {welcome && <Welcome onClose={() => setWelcome(false)} />}
       {help && <Help topic={help} onClose={() => setHelp(null)} />}
       {adding && <AddDialog onClose={() => setAdding(false)} onDone={reload} onBatch={() => { setAdding(false); setBatch(true); }} toast={showToast} />}
       {batch && <BatchDialog accounts={accounts} onClose={() => setBatch(false)} onDone={reload} toast={showToast} />}

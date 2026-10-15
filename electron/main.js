@@ -24,8 +24,8 @@ let quitting = false;
 // ---------- preferências do app (userData/settings.json) ----------
 const settingsFile = () => path.join(app.getPath('userData'), 'settings.json');
 function getSettings() {
-  try { const s = JSON.parse(fs.readFileSync(settingsFile(), 'utf8')); return { closeAction: ['ask', 'tray', 'quit'].includes(s.closeAction) ? s.closeAction : 'ask', notifyTasks: s.notifyTasks !== false }; }
-  catch { return { closeAction: 'ask', notifyTasks: true }; }
+  try { const s = JSON.parse(fs.readFileSync(settingsFile(), 'utf8')); return { closeAction: ['ask', 'tray', 'quit'].includes(s.closeAction) ? s.closeAction : 'ask', notifyTasks: s.notifyTasks !== false, hideWelcome: s.hideWelcome === true }; }
+  catch { return { closeAction: 'ask', notifyTasks: true, hideWelcome: false }; }
 }
 function setSettings(patch) {
   const s = { ...getSettings(), ...patch };
@@ -182,6 +182,7 @@ ipcMain.handle('app:setSettings', (_e, patch) => {
   const p = {};
   if (patch && ['ask', 'tray', 'quit'].includes(patch.closeAction)) p.closeAction = patch.closeAction;
   if (patch && typeof patch.notifyTasks === 'boolean') p.notifyTasks = patch.notifyTasks;
+  if (patch && typeof patch.hideWelcome === 'boolean') p.hideWelcome = patch.hideWelcome;
   return setSettings(p);
 });
 ipcMain.handle('app:testNotify', () => { notifyWin('Cloud Shell Hub', 'Os avisos do Windows estão funcionando.', true); return { ok: true }; });
