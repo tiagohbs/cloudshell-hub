@@ -23,7 +23,7 @@ const insideHome = (d) => d === '~' || d.startsWith('~/') || !d.startsWith('/');
 
 // ---------- espelho do PC (copia direta, sem Git) ----------
 const DEFAULT_EXCLUDE = ['node_modules', 'dist', 'build', 'release', '.git', '.cache', '.vite', '.turbo', '.next', 'coverage', '.DS_Store', 'Thumbs.db'];
-const DEFAULT_SECRETS = ['.env', '.env.*', 'tripo-keys.json', '*.pem', 'id_rsa*', 'id_ed25519*'];
+const DEFAULT_SECRETS = ['.env', '.env.*', '*-keys.json', 'secrets.json', '*.pem', 'id_rsa*', 'id_ed25519*'];
 const PATTERN_RE = /^[A-Za-z0-9._*?\/-]{1,80}$/;
 const WINABS_RE = /^(?:[A-Za-z]:[\\/]|\/)/;
 
@@ -51,7 +51,7 @@ function validateMirror(p, m) {
   const out = {};
   if (m.LocalDir !== undefined) {
     const v = normWin(m.LocalDir);
-    if (v && !WINABS_RE.test(v)) return { error: 'Pasta no PC: use o caminho completo, ex.: C:\\Users\\DEV\\Documents\\projeto' };
+    if (v && !WINABS_RE.test(v)) return { error: 'Pasta no PC: use o caminho completo, ex.: C:\\Users\\voce\\Documents\\projeto' };
     if (v && !fs.existsSync(v)) return { error: 'A pasta no PC não existe: ' + v };
     out.LocalDir = v;
   }
@@ -190,7 +190,7 @@ async function add({ name, repo, base, dir, mirror }) {
   repo = (repo || '').trim();
   base = (base || 'main').trim();
   if (!NAME_RE.test(name)) return { ok: false, error: 'Nome: letras, números, ponto, hífen ou sublinhado (até 40)' };
-  if (!REPO_RE.test(repo)) return { ok: false, error: 'Endereço do repositório inválido (use https://github.com/dono/repo ou git@github.com:dono/repo.git)' };
+  if (!REPO_RE.test(repo)) return { ok: false, error: 'Endereço do repositório inválido (use https://github.com/usuario/repo ou git@github.com:usuario/repo.git)' };
   if (!BRANCH_RE.test(base)) return { ok: false, error: 'Branch base inválido' };
   const d = cleanDir(dir);
   if (d === null) return { ok: false, error: 'Pasta inválida: use algo como ~/projetos/app (sem espaços, acentos ou "..")' };

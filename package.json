@@ -2,15 +2,35 @@
   "name": "cloudshell-hub",
   "version": "0.1.0",
   "description": "Launcher visual para varias contas do Google Cloud Shell",
+  "license": "MIT",
+  "author": "tiagohbs",
+  "homepage": "https://github.com/tiagohbs/cloudshell-hub#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tiagohbs/cloudshell-hub.git"
+  },
+  "bugs": {
+    "url": "https://github.com/tiagohbs/cloudshell-hub/issues"
+  },
+  "keywords": [
+    "cloud-shell",
+    "gemini",
+    "electron",
+    "cli",
+    "multi-account",
+    "agent"
+  ],
   "main": "electron/main.js",
   "scripts": {
     "build": "vite build",
     "start": "vite build && electron .",
     "dev": "vite build --watch",
-    "dist": "vite build && electron-builder --win portable"
+    "dist": "vite build && electron-builder --win portable",
+    "docs": "node scripts/gerar-docs.js",
+    "auditar": "node scripts/auditar-privacidade.js"
   },
   "build": {
-    "appId": "dev.tiago.cloudshellhub",
+    "appId": "io.github.tiagohbs.cloudshellhub",
     "productName": "Cloud Shell Hub",
     "directories": {
       "output": "release"

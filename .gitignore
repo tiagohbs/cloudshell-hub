@@ -2,4 +2,13 @@ node_modules
 dist
 release
 
+# dados locais e gerados
+graphify-out/
 skill/_to_delete/
+*.log
+.env
+.env.*
+*.pem
+.cloudshell-accounts.json
+.cloudshell-projects.json
+.cshub/

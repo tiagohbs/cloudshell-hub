@@ -15,7 +15,7 @@ const HELP = `cshub — Cloud Shell Hub pela linha de comando
 CONTAS
   cshub contas                       contas: [LIVRE] ou [BLOQUEADA: motivo] (em-uso-no-pc, reserva-manual, sem-cota-gemini, sem-horas-vm, sem-login), VM, horas 7d
   cshub acordar <conta>              liga a VM (se suspensa) e confirma o acesso
-  cshub local [<conta|e-mail>]       marca a conta em uso no PC (Arauto/Vidente); ela fica reservada e a anterior e liberada
+  cshub local [<conta|e-mail>]       marca a conta em uso no PC (a do agy local do orquestrador); ela fica reservada e a anterior e liberada
         [--nenhuma]                  nenhuma conta em uso no PC
   cshub reservar <conta> "<motivo>"  impede tarefas nesta conta (ex.: cota compartilhada com outro agente)
   cshub liberar <conta>              remove a reserva

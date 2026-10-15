@@ -15,14 +15,14 @@ function DirField({ value, onChange, placeholder }) {
 }
 
 const DEFAULT_EXCLUDE = ['node_modules', 'dist', 'build', 'release', '.git', '.cache', '.vite', '.turbo', '.next', 'coverage', '.DS_Store', 'Thumbs.db'];
-const DEFAULT_SECRETS = ['.env', '.env.*', 'tripo-keys.json', '*.pem', 'id_rsa*', 'id_ed25519*'];
+const DEFAULT_SECRETS = ['.env', '.env.*', '*-keys.json', 'secrets.json', '*.pem', 'id_rsa*', 'id_ed25519*'];
 
 function MirrorFields({ f, set, name }) {
   return (
     <fieldset className="mirrorset">
       <legend>Espelho do PC (cópia direta, sem Git)</legend>
       <label>Pasta do projeto no PC
-        <input value={f.local} onChange={set('local')} placeholder="C:\Users\DEV\Documents\copianeural" spellCheck={false} />
+        <input value={f.local} onChange={set('local')} placeholder="C:\Users\voce\Documents\meu-projeto" spellCheck={false} />
       </label>
       <div className="row2">
         <label>Espelho na nuvem

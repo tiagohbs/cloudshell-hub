@@ -1,15 +1,15 @@
 ---
 name: cloudshell-hub
-description: Delegar trabalho para agentes agy nas VMs do Google Cloud Shell (outras contas, cota e memória separadas do PC) usando o comando cshub. Use quando o Tiago pedir para mandar uma tarefa para a nuvem, dividir trabalho entre contas ou subagentes, aliviar a memória do PC, ou trazer resultados da nuvem.
+description: Delegar trabalho para agentes agy nas VMs do Google Cloud Shell (outras contas, cota e memória separadas do PC) usando o comando cshub. Use quando o usuário pedir para mandar uma tarefa para a nuvem, dividir trabalho entre contas ou subagentes, aliviar a memória do PC, ou trazer resultados da nuvem.
 ---
 
 # Cloud Shell Hub: delegar trabalho para a nuvem
 
-Cada conta Google cadastrada tem uma VM do Cloud Shell com o `agy` (Gemini). Ela roda fora do PC (que tem só 5,8 GB). Nas contas livres (as que não são a do PC), a cota do Gemini também é separada da do Arauto e da Vidente. O projeto chega lá por um **espelho**: uma cópia direta da pasta do PC, sem Git e sem push. O que o agente produz volta para uma **pasta de resultados fora do worktree**, para revisão.
+Cada conta Google cadastrada tem uma VM do Cloud Shell com o `agy` (Gemini). Ela roda fora do PC (que costuma ter pouca memória). Nas contas livres (as que não são a do PC), a cota do Gemini também é separada da dos agentes que rodam no PC. O projeto chega lá por um **espelho**: uma cópia direta da pasta do PC, sem Git e sem push. O que o agente produz volta para uma **pasta de resultados fora do worktree**, para revisão.
 
-Comando: `C:\Users\DEV\Documents\cloudshell-app\cshub.cmd` (ou só `cshub`, se a pasta estiver no PATH). Use `--json` sempre que for ler a saída num script ou num subagente. `cshub ajuda` lista tudo.
+Comando: o `cshub.cmd` da pasta do Cloud Shell Hub (ou só `cshub`, se a pasta estiver no PATH). Use `--json` sempre que for ler a saída num script ou num subagente. `cshub ajuda` lista tudo.
 
-**As regras do projeto vêm antes desta skill.** Esta skill é o manual genérico do comando. Se o projeto tiver um documento próprio de uso da nuvem (no `copianeural`: `docs/NUVEM_CLOUDSHELL.md`), leia-o primeiro: ele define contas permitidas, onde salvar as tarefas e o papel da nuvem no fluxo do projeto.
+**As regras do projeto vêm antes desta skill.** Esta skill é o manual genérico do comando. Se o projeto tiver um documento próprio de uso da nuvem (por exemplo `docs/NUVEM_CLOUDSHELL.md`; há um modelo em `docs/EXEMPLO-REGRAS-DO-PROJETO.md` no repositório do Cloud Shell Hub), leia-o primeiro: ele define contas permitidas, onde salvar as tarefas e o papel da nuvem no fluxo do projeto.
 
 ## Quando usar
 - Leitura e análise de código, pesquisa no projeto, revisões, relatórios.
@@ -23,9 +23,9 @@ Comando: `C:\Users\DEV\Documents\cloudshell-app\cshub.cmd` (ou só `cshub`, se a
 - **Para julgar** (provas, fotos, aprovação de rodada): os juízes já definidos nas regras do projeto continuam sendo os padrão. Usar a nuvem como juiz é decisão do orquestrador, caso a caso, conforme o uso mostrar que funciona. Se o projeto exigir calibração para o juiz, aplique a mesma à nuvem.
 
 ## Regras que não se quebram
-1. **Segredos:** nunca use `--com-segredos` sem o Tiago autorizar explicitamente, naquela tarefa específica.
+1. **Segredos:** nunca use `--com-segredos` sem o usuário autorizar explicitamente, naquela tarefa específica.
 2. **Modo livre:** nunca use `--livre` (o `agy` executa comandos sem pedir permissão) sem autorização. A VM tem as credenciais do gcloud daquela conta. O padrão (edita arquivos) basta para quase tudo; para só analisar, use `--leitura`. O `--leitura` é uma instrução ao agente ("não altere arquivos do projeto, escreva só em `.saida/`"), não um bloqueio técnico. Isso é aceitável porque o agente só mexe no espelho, que é uma cópia, e tudo volta para a pasta de resultados para revisão. Evite `--plano`: o modo plano do `agy` gasta uma rodada extra pedindo aprovação, sem ninguém para responder.
-3. **Nada entra no worktree sozinho:** os resultados ficam em `<resultados>\<conta>\...`. Revise e aplique à mão o que o Tiago aprovar. Nunca `git add -A`.
+3. **Nada entra no worktree sozinho:** os resultados ficam em `<resultados>\<conta>\...`. Revise e aplique à mão o que o usuário aprovar. Nunca `git add -A`.
 4. **Só envie com a árvore parada:** nenhum agente editando a pasta espelhada, nada compilando, nenhuma foto sendo tirada (a mesma regra do graphify). Além de poupar a memória do PC, isso evita copiar um arquivo pela metade. Se aparecer "Pouca memoria livre", espere; `--forcar` só com motivo.
 5. **Caminhos:** o agente da nuvem não conhece `C:\...`. Use caminhos relativos à raiz do projeto, ou `cshub caminho <projeto> <caminho do PC> --conta <conta>`, que devolve sempre com `/`.
 6. **Uma tarefa de edição por conta e projeto ao mesmo tempo.** Duas tarefas na mesma conta mexendo nos mesmos arquivos se atropelam.
@@ -34,18 +34,18 @@ Comando: `C:\Users\DEV\Documents\cloudshell-app\cshub.cmd` (ou só `cshub`, se a
    - **Horas de VM do Cloud Shell:** cerca de 50 h por semana. `cshub contas` mostra as horas dos últimos 7 dias (estimativa).
    Não deixe tarefas esquecidas rodando.
 8. **Quais contas ficam bloqueadas.** Só três situações bloqueiam uma conta; todas as outras estão livres para a nuvem. `cshub contas` mostra cada conta como `[LIVRE]` ou `[BLOQUEADA: motivo]`:
-   - **`em-uso-no-pc`:** a conta que o Arauto e a Vidente usam agora no Maestri. Ela muda quando a cota acaba e o Tiago troca; a cada troca rode `cshub local <conta ou e-mail>`, que bloqueia a nova e libera a anterior. `cshub local`, sem argumento, mostra qual está marcada.
+   - **`em-uso-no-pc`:** a conta que os agentes locais do orquestrador usam agora no PC (por exemplo no Maestri). Ela muda quando a cota acaba e o usuário troca; a cada troca rode `cshub local <conta ou e-mail>`, que bloqueia a nova e libera a anterior. `cshub local`, sem argumento, mostra qual está marcada.
    - **`sem-cota-gemini`:** cota do Gemini marcada como esgotada, ou com menos de 5% restante (semanal ou 5 h) na última medição.
    - **`sem-horas-vm`:** a VM já usou 47 h ou mais das 50 h da semana (estimativa do `cshub`).
    - Também bloqueiam `sem-login` (conta sem login no gcloud) e `reserva-manual` (`cshub reservar <conta> "<motivo>"`, só se alguém criou; `cshub liberar <conta>` remove).
-   O `cshub tarefa` recusa conta em uso no PC ou reservada (`--usar-reservada`, só com autorização do Tiago e os agentes donos parados), conta esgotada, e conta sem horas de VM (`--ignorar-horas`, só com motivo). `cshub escolher` lista as contas livres da melhor para a pior (VM ativa, mais cota, menos horas, menos tarefas); sai com código 5 se não há nenhuma.
+   O `cshub tarefa` recusa conta em uso no PC ou reservada (`--usar-reservada`, só com autorização do usuário e os agentes donos parados), conta esgotada, e conta sem horas de VM (`--ignorar-horas`, só com motivo). `cshub escolher` lista as contas livres da melhor para a pior (VM ativa, mais cota, menos horas, menos tarefas); sai com código 5 se não há nenhuma.
 9. **Nunca ative créditos pagos, cobrança extra ("overages") ou AI credits**, mesmo que o `agy` sugira. Cota esgotada se resolve trocando de conta ou esperando a renovação.
 
 ## Ciclo padrão (uma tarefa)
-0. **Conferir a conta do PC:** confirme que `cshub local` aponta para a conta que o Arauto e a Vidente estão usando agora. O e-mail aparece no cabeçalho do `agy` no painel deles (`maestri check "<painel>"`); se não der para ver, pergunte ao Tiago. Se mudou, rode `cshub local <e-mail>` antes de qualquer outra coisa.
+0. **Conferir a conta do PC:** confirme que `cshub local` aponta para a conta que os agentes locais estão usando agora. O e-mail aparece no cabeçalho do `agy` no painel deles (`maestri check "<painel>"`); se não der para ver, pergunte ao usuário. Se mudou, rode `cshub local <e-mail>` antes de qualquer outra coisa.
 1. **Escolher a conta:** `cshub escolher --json` devolve as contas livres, da melhor para a pior. Para ver o porquê, `cshub contas --json` mostra o estado da VM, as horas de 7 dias, as tarefas rodando, a última cota medida (`cota.gemini.minimo`) e o campo `bloqueio` de cada conta (vazio = livre), sem acordar nenhuma VM. A cota pode estar desatualizada (`medidaHaMin`). Antes de uma tarefa longa, meça de novo a conta escolhida com `cshub cota <conta> --json` (leva uns 20 s e liga a VM se estiver suspensa).
 2. **Atualizar o espelho:** `cshub enviar <projeto> <conta> --json`. É incremental (só manda o que mudou) e leva junto o `git diff` e o `git status` do PC em `.cshub/`. Faça isso antes de toda tarefa, para a nuvem ver o estado atual.
-3. **Escrever a tarefa** num arquivo `.md`, no lugar que as regras do projeto definem para registrar tarefas (no `copianeural`, `scratch/receitas-mundo/`). Sem essa definição, use `%TEMP%`, sabendo que ela se perde. Siga o modelo abaixo. Depois:
+3. **Escrever a tarefa** num arquivo `.md`, no lugar que as regras do projeto definem para registrar tarefas. Sem essa definição, use `%TEMP%`, sabendo que ela se perde. Siga o modelo abaixo. Depois:
    `cshub tarefa <projeto> <conta> --arquivo <tarefa.md> [--leitura] --cota-minima <pct> --json` (veja os mínimos na seção "Cota do Gemini"). Guarde o `id`, no formato `T20261009-123456-abc`. Com `--cota-minima`, o `cshub` mede a cota antes e recusa (código 6) se ela estiver abaixo do mínimo. Ele também recusa sozinho uma conta marcada como esgotada.
 4. **Esperar e trazer:** `cshub esperar <projeto> <conta> <id> --trazer --json`. Para tarefas médias e longas, acrescente `--vigiar-cota 10 --parar-cota`: a cada 10 minutos o `cshub` mede a cota e, se ela cair abaixo de 10%, cancela a tarefa antes que a conta trave. **Nunca espere sem prazo:** use fatias curtas, `--minutos 15` a `20`, e olhe o código de saída a cada fatia (veja a regra "Espera e falhas" abaixo). Códigos de saída:
    - `0`: concluída. A resposta vem em `resposta`, e os arquivos em `arquivos`.
@@ -54,19 +54,19 @@ Comando: `C:\Users\DEV\Documents\cloudshell-app\cshub.cmd` (ou só `cshub`, se a
    - `6`: cota. Ou ela esgotou durante a tarefa (a conta fica marcada até a renovação), ou caiu abaixo do limite de `--vigiar-cota`. Rode `cshub trazer` para salvar o que já foi feito e continue em outra conta. Não use `--continuar` nesse caso, porque a conversa ficou na conta anterior: descreva na nova tarefa o que já está pronto.
    - `7`: o `agy` ficou **travado** (sem saída e sem CPU por 15 min) ou passou do **tempo máximo** (90 min). O vigia da VM já encerrou a tarefa. `cshub trazer` salva o que existir; dispare de novo menor ou em outra conta.
    - `8`: **falha do servidor ou da rede** do Gemini/Antigravity (500/503, sobrecarga). Em tarefas de leitura o vigia já repetiu até 2 vezes sozinho. Espere alguns minutos ou use outra conta.
-   - `9`: a conta **perdeu o login**. Avise o Tiago (Editar conta no app) e use outra conta.
+   - `9`: a conta **perdeu o login**. Avise o usuário (Editar conta no app) e use outra conta.
    - `10`: o `agy` **deixou testes/benchmarks em segundo plano e parou esperando** (`root agent idle; waiting up to 30m…`), sem entregar. Código 0 sem `RESUMO.md` agora conta como falha. Rode os testes com `cshub rodar` ou redispare mandando executar tudo em primeiro plano.
    - `11`: o `agy` terminou sem escrever o `RESUMO.md`. Confira o que ele editou (`cshub trazer`) antes de aplicar.
    - `12`: (`cshub rodar`) um comando do script **não existe na VM**. O `rodar` já carrega o nvm; se ainda faltar node/npx/ferramenta, o script saiu com 127 ou imprimiu `command not found`, e isso agora conta como falha.
    - `5` também aparece quando a **VM parou ou reiniciou** no meio da tarefa (o vigia morre junto). Rode `cshub acordar`, `cshub trazer` e redispare o que faltou com `cshub tarefa --continuar --ignorar-espelho`.
    - `1`: falhou por outro motivo. Veja `cshub resultado <projeto> <conta> <id>` (resposta e erros).
-   Cada falha traz o campo `orientacao` e `codigoErro` (`CSH-…`) no `--json`. Cite o código ao Tiago.
-   **Espera e falhas (regra):** o vigia na VM garante que a tarefa termina sozinha (travada, tempo máximo, falha classificada), então um `esperar` nunca fica preso para sempre, **desde que você espere em fatias**. Faça um laço: `esperar --minutos 15` → se sair `4`, espere de novo; para qualquer outro código, decida pela tabela. No máximo **2 redisparos por tarefa** (soma de 7, 8 e 5); depois relate ao Tiago em vez de insistir. Troque de conta quando o código for 6 ou 9, ou quando 8 se repetir. Para tarefas que editam arquivos, o vigia **não** repete sozinho (evita duplicar mudanças): você decide o redisparo e descreve o que já está pronto. Opções do `cshub tarefa`: `--travado-min` (15), `--max-min` (90), `--repetir`/`--sem-repetir`.
-   **Acompanhar sem gastar tokens:** abra um painel de terminal do orquestrador (no Maestri: `maestri recruit "Nuvem-<conta>" --preset "Shell" --command "cshub acompanhar <projeto> <conta> <id> --resumo"`). O painel mostra o fluxo do agente ao vivo (somente leitura: nada digitado chega a ele; Ctrl+C só fecha a janela), espera a tarefa terminar, traz o resultado e sai com o código da tarefa (0, 6, 7, 8, 9…). **Não fique consultando a nuvem em laço:** leia o painel só no fim (`maestri check`, últimas linhas) ou quando precisar decidir. Use `--resumo` no painel que você mesmo vai ler; o Tiago pode abrir o fluxo completo (`cshub acompanhar <projeto> <conta>` sem `--resumo`, ou "Ver tarefa ao vivo" no menu ⋯ da conta no app). Para ver o raciocínio passo a passo, dispare a tarefa com `--ao-vivo`. `cshub ao-vivo` mostra só o fluxo, sem esperar nem trazer.
+   Cada falha traz o campo `orientacao` e `codigoErro` (`CSH-…`) no `--json`. Cite o código ao usuário.
+   **Espera e falhas (regra):** o vigia na VM garante que a tarefa termina sozinha (travada, tempo máximo, falha classificada), então um `esperar` nunca fica preso para sempre, **desde que você espere em fatias**. Faça um laço: `esperar --minutos 15` → se sair `4`, espere de novo; para qualquer outro código, decida pela tabela. No máximo **2 redisparos por tarefa** (soma de 7, 8 e 5); depois relate ao usuário em vez de insistir. Troque de conta quando o código for 6 ou 9, ou quando 8 se repetir. Para tarefas que editam arquivos, o vigia **não** repete sozinho (evita duplicar mudanças): você decide o redisparo e descreve o que já está pronto. Opções do `cshub tarefa`: `--travado-min` (15), `--max-min` (90), `--repetir`/`--sem-repetir`.
+   **Acompanhar sem gastar tokens:** abra um painel de terminal do orquestrador (no Maestri: `maestri recruit "Nuvem-<conta>" --preset "Shell" --command "cshub acompanhar <projeto> <conta> <id> --resumo"`). O painel mostra o fluxo do agente ao vivo (somente leitura: nada digitado chega a ele; Ctrl+C só fecha a janela), espera a tarefa terminar, traz o resultado e sai com o código da tarefa (0, 6, 7, 8, 9…). **Não fique consultando a nuvem em laço:** leia o painel só no fim (`maestri check`, últimas linhas) ou quando precisar decidir. Use `--resumo` no painel que você mesmo vai ler; o usuário pode abrir o fluxo completo (`cshub acompanhar <projeto> <conta>` sem `--resumo`, ou "Ver tarefa ao vivo" no menu ⋯ da conta no app). Para ver o raciocínio passo a passo, dispare a tarefa com `--ao-vivo`. `cshub ao-vivo` mostra só o fluxo, sem esperar nem trazer.
    **Tarefas com scripts longos (testes de mutação, QA, `.mjs`):** o vigia conta como "vivo" tudo o que gasta CPU, escreve arquivos no projeto, cresce o log ou recebe `touch "$CSHUB_PULSO"`. Um teste que só espera rede ou `sleep` por mais de 15 min parece travado. Para esses casos: (a) se for só rodar um comando conhecido, **não gaste cota do Gemini**: use `cshub rodar <projeto> <conta> --comando "node scripts/mutation.mjs" --max-min 240`, que roda o comando na VM com o mesmo vigia e traz a saída com `esperar`/`resultado`; (b) se precisar do agy, dispare com `--max-min` e `--travado-min` maiores (ex.: `--max-min 240 --travado-min 30`) e peça na tarefa que tudo rode **em primeiro plano** (o cabeçalho do `cshub` já proíbe segundo plano e exige `RESUMO.md`). Nunca peça para rodar em segundo plano: o agy para esperando e a tarefa acaba sem entrega.
    **Outros recursos:** `cshub tarefa … --anexo <arquivo>` (repetível) sobe arquivos avulsos (ex.: veredito de um juiz) para `.saida/<id>/anexos/`. O `cshub tarefa` **recusa** disparar se o espelho estiver diferente do PC (rode `cshub enviar`; `--ignorar-espelho` só de propósito). Os `esperar`/`acompanhar` terminam sempre com a linha `CSH-FIM {"code":…,"arquivos":"…","resumo":true}`; leia essa linha em vez de adivinhar pelo prompt. `cshub resultado … --texto` devolve só a resposta final (inclusive com `--ao-vivo`). `cshub aplicar <id> <worktree> [--simular]` copia o resultado para o worktree depois de conferir que cada arquivo local é igual ao enviado (senão recusa tudo); `.saida/` fica fora. Ignore o `duration_seconds` do `saida.json`: `cshub resultado` mostra a duração real.
 5. **Revisar:** leia `RESUMO.md` em `<arquivos>\.saida\<id>\`. Confira `mudancas.txt` (A = novo, M = alterado, D = apagado na nuvem) e `alteracoes.patch`, que compara com a versão atual do PC.
-6. **Relatar ao Tiago** o que foi feito e propor o que aplicar no worktree.
+6. **Relatar ao usuário** o que foi feito e propor o que aplicar no worktree.
 
 Para continuar a conversa da última tarefa naquela conta (uma correção, por exemplo), use `--continuar` no próximo `cshub tarefa`.
 
@@ -117,13 +117,13 @@ O Claude do Maestri tem limite de 10 minutos por comando em primeiro plano, e co
 4. Quando terminar, feche com `maestri dismiss "Nuvem-<conta>"`.
 5. Para uma tarefa curta, dá para esperar na própria sessão em blocos: `cshub esperar … --minutos 9 --json`, repetindo enquanto o código for 4.
 
-O Tiago acompanha pelo canvas. Para ver o `agy` trabalhando ao vivo, há também `cshub ssh <conta> --espelho <projeto> --agy` num painel. Ele serve só para olhar: a tarefa disparada roda à parte, em segundo plano na VM.
+O usuário acompanha pelo canvas. Para ver o `agy` trabalhando ao vivo, há também `cshub ssh <conta> --espelho <projeto> --agy` num painel. Ele serve só para olhar: a tarefa disparada roda à parte, em segundo plano na VM.
 
 ## Paralelismo com subagentes
 - Divida o trabalho em partes independentes (pastas ou arquivos diferentes) e dê **uma conta a cada subagente**.
 - Cada subagente roda o ciclo padrão na própria conta e devolve: `id`, código de saída, resposta e as pastas de `logs` e `arquivos`.
 - Um `cshub esperar` por conta pode rodar ao mesmo tempo.
-- O orquestrador junta os resultados. Se duas contas alteraram o mesmo arquivo, mostre o conflito ao Tiago em vez de escolher sozinho.
+- O orquestrador junta os resultados. Se duas contas alteraram o mesmo arquivo, mostre o conflito ao usuário em vez de escolher sozinho.
 - Antes de começar, rode o `cshub enviar` para todas as contas do lote, em sequência (não em paralelo), para não pesar no PC.
 
 ## Outros comandos
@@ -136,7 +136,7 @@ O Tiago acompanha pelo canvas. Para ver o `agy` trabalhando ao vivo, há também
 - `cshub reservar <conta> "<motivo>"` e `cshub liberar <conta>`: reservas manuais.
 - `cshub pasta-pc <projeto> <pasta>`: aponta o espelho para outra pasta do PC, como o worktree da rodada atual. O próximo `enviar` reenvia o que for diferente e apaga na nuvem o que não existe na pasta nova.
 - `cshub acordar <conta>`: liga a VM e confirma o acesso.
-- `cshub ssh <conta> --espelho <projeto> --agy`: abre o `agy` interativo da nuvem no terminal atual (por exemplo, num painel do Maestri, para o Tiago acompanhar).
+- `cshub ssh <conta> --espelho <projeto> --agy`: abre o `agy` interativo da nuvem no terminal atual (por exemplo, num painel do Maestri, para o usuário acompanhar).
 
 ## Problemas comuns
 | Mensagem | O que fazer |
@@ -146,15 +146,15 @@ O Tiago acompanha pelo canvas. Para ver o `agy` trabalhando ao vivo, há também
 | "A conexao caiu enquanto esperava" | A tarefa continua na VM: rode `cshub esperar` de novo |
 | Código 7 (travada / tempo máximo) | `cshub trazer`; redisparar com tarefa menor ou em outra conta |
 | Código 8 (servidor / rede) | Esperar alguns minutos e redisparar; se repetir, outra conta |
-| Código 9 (sem login) | Avisar o Tiago; usar outra conta |
+| Código 9 (sem login) | Avisar o usuário; usar outra conta |
 | Código 5 / "o agy parou sem terminar" | `cshub acordar`, `cshub enviar` e disparar de novo |
-| "A conta … esta reservada" | Escolher outra conta (`cshub escolher`). Só liberar com autorização do Tiago |
+| "A conta … esta reservada" | Escolher outra conta (`cshub escolher`). Só liberar com autorização do usuário |
 | "A VM de … ja usou … h" | Escolher outra conta; `--ignorar-horas` só com motivo |
 | Código 6 / "Cota insuficiente" ao disparar | Escolher outra conta com mais cota, ou dividir a tarefa |
 | Código 6 / "A cota do agy esgotou" | `cshub trazer`, depois redisparar o que faltou em outra conta |
-| "Nao consegui ler o /usage" / "o painel /usage nao apareceu" | O `agy` pode estar pedindo login: pedir ao Tiago para abrir **agy no espelho** no app uma vez |
-| Estado `sem-login` em `cshub contas` | Pedir ao Tiago para logar a conta no app (Contas > Adicionar ou Editar) |
-| Resposta do `agy` falando de login ou autenticação | Pedir ao Tiago para abrir **agy no espelho** no app uma vez nessa conta |
+| "Nao consegui ler o /usage" / "o painel /usage nao apareceu" | O `agy` pode estar pedindo login: pedir ao usuário para abrir **agy no espelho** no app uma vez |
+| Estado `sem-login` em `cshub contas` | Pedir ao usuário para logar a conta no app (Contas > Adicionar ou Editar) |
+| Resposta do `agy` falando de login ou autenticação | Pedir ao usuário para abrir **agy no espelho** no app uma vez nessa conta |
 
 ## Armadilhas do agy (aprendidas em 14/10)
 - **Nunca `pkill -f "<texto>"` nem `killall`.** A linha de comando do agy contém o texto da tarefa, então o padrão mata o próprio agente (SIGKILL = código 137). Encerre só pelo PID que ele mesmo criou. O cabeçalho do `cshub` já diz isso, mas reforce na tarefa quando ela subir carga.
@@ -167,9 +167,9 @@ O Tiago acompanha pelo canvas. Para ver o `agy` trabalhando ao vivo, há também
 - **`cshub tarefas` não acorda mais a VM.** Com a VM parada ele avisa; use `--acordar` para listar mesmo assim.
 
 ## No PC (Maestri e agy local)
-- O agy local **se auto-atualiza** e já ficou quebrado (até `agy --version` saía com 0xC0000005, e o Arauto deu 401). Rode `cshub saude` antes de depender dele; versões antigas ficam em `%LOCALAPPDATA%\agy\bin\agy.exe.<n>.old`.
+- O agy local **se auto-atualiza** e já ficou quebrado (até `agy --version` saía com 0xC0000005, e os agentes locais deram 401). Rode `cshub saude` antes de depender dele; versões antigas ficam em `%LOCALAPPDATA%\agy\bin\agy.exe.<n>.old`.
 - **Terminal aberto antes da reinstalação do agy dá 401 até ser reiniciado.**
-- A troca de conta do Maestri (`--account`) funciona para contas que **já têm login salvo no Antigravity do PC** (05 Vidente, 07 Arauto). Conta sem login local (ex.: 06-thbs.Comercial) não sobe. O `cshub local` precisa marcar a conta que está logada no agy do PC.
+- A troca de conta do Maestri (`--account`) funciona para contas que **já têm login salvo no Antigravity do PC** (ex.: as contas 05 e 07). Conta sem login local não sobe. O `cshub local` precisa marcar a conta que está logada no agy do PC.
 - No Git Bash, `/clear` vira caminho (`C:/Program Files/Git/clear`). Para comandos com barra, mande pelo PowerShell ou use `MSYS_NO_PATHCONV=1`.
 
 ## Limites conhecidos

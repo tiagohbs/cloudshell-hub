@@ -219,13 +219,13 @@ async function send(projName, accName, { full = false, withSecrets = false, forc
         await fsp.writeFile(path.join(tmp, 'git-status.txt'), hasGit ? status.out : '');
         await fsp.writeFile(path.join(tmp, 'git-diff.patch'), hasGit ? diff.out : '');
         await fsp.writeFile(path.join(tmp, 'LEIA-ME.txt'), [
-          'Esta pasta e uma COPIA do projeto que esta no PC do Tiago. Ela NAO e um repositorio git.',
+          'Esta pasta e uma COPIA do projeto que esta no PC do usuário. Ela NAO e um repositorio git.',
           'git status / git diff não funcionam aqui. Para saber o que mudou em relação ao commit base:',
           '  - .cshub/base.txt       branch e commit de origem no PC',
           '  - .cshub/git-status.txt saida de git status no PC (arquivos alterados e novos)',
           '  - .cshub/git-diff.patch git diff HEAD gerado no PC (trabalho sem commit)',
           'Segredos (.env, chaves) normalmente NAO foram copiados.',
-          'Coloque relatórios e arquivos de saída em .saida/ dentro desta pasta. Tudo que você criar ou alterar aqui volta para o PC numa pasta separada quando o Tiago pedir.',
+          'Coloque relatórios e arquivos de saída em .saida/ dentro desta pasta. Tudo que você criar ou alterar aqui volta para o PC numa pasta separada quando o usuário pedir.',
           ''
         ].join('\n'));
         const ms = tar.c({ cwd: tmp, portable: true }, ['base.txt', 'git-status.txt', 'git-diff.patch', 'LEIA-ME.txt']);

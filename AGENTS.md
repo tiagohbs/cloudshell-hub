@@ -1,9 +1,9 @@
 # AGENTS.md — contexto para qualquer IA que mexer neste projeto
 
-Leia este arquivo antes de alterar o código. Ele resume o que o app faz, como está organizado e as regras que o dono (Tiago) espera que sejam seguidas.
+Leia este arquivo antes de alterar o código. Ele resume o que o app faz, como está organizado e as regras que o mantenedor espera que sejam seguidas.
 
 ## O que é
-**Cloud Shell Hub**: app desktop (Electron 33 + React 18 + Vite, Windows) que gerencia **várias contas do Google Cloud Shell**, abre terminais nelas (SSH) e permite que o orquestrador **Maestri** (um Claude no PC) delegue tarefas a agentes `agy` (Gemini) rodando nas VMs, cada conta com sua própria cota e memória.
+**Cloud Shell Hub**: app desktop (Electron 33 + React 18 + Vite, Windows) que gerencia **várias contas do Google Cloud Shell**, abre terminais nelas (SSH) e permite que um orquestrador de agentes no PC (por exemplo o **Maestri**, com um Claude) delegue tarefas a agentes `agy` (Gemini) rodando nas VMs, cada conta com sua própria cota e memória.
 
 Três peças trabalham juntas:
 1. **App** (`electron/` + `src/`): interface, contas, terminais, projetos, espelho do PC, cota.
@@ -31,7 +31,9 @@ Três peças trabalham juntas:
 | `src/ask.jsx` | Janela de confirmação no tema (`ask()`), substitui `confirm()` |
 | `src/Help.jsx` | Janela de ajuda arrastável (botão "?") |
 | `src/styles.css` | Todo o visual, com variáveis de tema |
-| `skill/` | Skill e rascunho do papel da nuvem para o Maestri |
+| `skill/` | Skill `cloudshell-hub` (manual do `cshub` para o orquestrador) |
+| `docs/` | Documentação: funcionamento, códigos de erro, referência do `cshub`, modelo de regras de projeto |
+| `scripts/` | `gerar-docs.js` (gera as docs de erros e do `cshub`) e `auditar-privacidade.js` |
 | `build/` | Ícones (`icon.svg/png/ico`); `electron/icon.png` é a cópia usada em runtime |
 
 Dados do usuário (fora do repositório): `~/.cloudshell-accounts.json`, `~/.cloudshell-projects.json`, `~/.cshub/` (cota, estado, conta local), `~/.ssh/google_compute_engine` (chave sem senha, usada pelo `ssh.exe`; **não há Pageant/ssh-agent**).
@@ -43,7 +45,7 @@ npm start          # vite build + electron .
 npm run dist       # gera release\Cloud Shell Hub 0.1.0.exe (portátil)
 ```
 - O Vite escreve em `dist/`; o instalador escreve em `release/` (separados de propósito). Ambos ficam fora do Git.
-- O build do Vite/Electron **só funciona no Windows do dono**. Em ambiente Linux falta `@rollup/rollup-linux-x64-gnu`. Para validar sintaxe sem rodar: `node --check arquivo.js` (backend) e `esbuild` com `loader: 'jsx'` (React).
+- O build do Vite/Electron **só funciona no Windows do mantenedor**. Em ambiente Linux falta `@rollup/rollup-linux-x64-gnu`. Para validar sintaxe sem rodar: `node --check arquivo.js` (backend) e `esbuild` com `loader: 'jsx'` (React).
 - Itens que o `.exe` precisa conter ficam em `build.files` do `package.json` (hoje `dist`, `electron`, `skill/cloudshell-hub`). Se um recurso novo for lido em tempo de execução, inclua-o ali.
 - A CLI (`cli/`) **não** vai dentro do `.exe`; roda pelo `cshub.cmd` com Node.
 
@@ -74,11 +76,11 @@ npm run dist       # gera release\Cloud Shell Hub 0.1.0.exe (portátil)
 - Fechar a janela do app pede escolha **minimizar para a bandeja / fechar de vez** (configurável em `settings.json`, chave `closeAction`: `ask|tray|quit`). Terminais seguem vivos na bandeja.
 
 ## Fluxo de trabalho esperado
-- O dono é professor/desenvolvedor e conversa em português. Seja direto; explique o resultado, não o passo a passo.
-- Depois de grandes alterações, rode `graphify update` (preferência dele) e use o graphify para navegar no projeto quando ajudar.
-- Valide o que puder sem executar o Electron (`node --check`, esbuild) e **diga claramente o que não foi testado**; ele testa com `npm start`.
-- Não faça commit/push sem ele pedir. Repositório: https://github.com/tiagohbs/cloudshell-hub (privado, branch `main`).
-- Se mudar o comportamento do `cshub`, atualize também `skill/cloudshell-hub/SKILL.md` (e reinstale a skill) e `skill/NUVEM_CLOUDSHELL.rascunho.md`, que é o que o Claude do Maestri lê.
+- O mantenedor conversa em português (PT-BR). Seja direto; explique o resultado, não o passo a passo.
+- Depois de grandes alterações, rode `graphify update` (se o mantenedor usa) e use o graphify para navegar no projeto quando ajudar.
+- Valide o que puder sem executar o Electron (`node --check`, esbuild) e **diga claramente o que não foi testado**; o mantenedor testa com `npm start`.
+- Não faça commit/push sem o mantenedor pedir. Repositório: https://github.com/tiagohbs/cloudshell-hub (branch `main`). Antes de publicar, rode `npm run auditar`.
+- Se mudar o comportamento do `cshub`, atualize também `skill/cloudshell-hub/SKILL.md` (e reinstale a skill) e `docs/EXEMPLO-REGRAS-DO-PROJETO.md` (modelo das regras de projeto que o orquestrador lê).
 - Se mudar uma tela, atualize os passos em `src/Help.jsx` e este arquivo quando a estrutura mudar.
 
 

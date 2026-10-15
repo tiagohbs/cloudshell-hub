@@ -261,7 +261,7 @@ async function checkTasks() {
 app.whenReady().then(() => {
   if (!gotLock) return;
   Menu.setApplicationMenu(null);
-  app.setAppUserModelId('dev.tiago.cloudshellhub');
+  app.setAppUserModelId('io.github.tiagohbs.cloudshellhub');
   createWindow();
   setTimeout(checkTasks, 20000);
   setInterval(checkTasks, 60000);

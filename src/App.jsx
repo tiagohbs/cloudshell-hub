@@ -407,7 +407,7 @@ function EditDialog({ acc, onClose, onDone, toast, onRenamed }) {
           </label>
         )}
         <label>Reservada para <span className="hint">opcional</span>
-          <input value={f.reserved} onChange={set('reserved')} maxLength={160} placeholder="ex.: Arauto e Vidente (cota do Gemini compartilhada)" />
+          <input value={f.reserved} onChange={set('reserved')} maxLength={160} placeholder="ex.: agentes locais do orquestrador (cota do Gemini compartilhada)" />
           <span className="hint">Conta reservada não recebe tarefas do cshub sem liberação explícita.</span>
         </label>
         <LinkRow email={acc.Email} toast={toast} />

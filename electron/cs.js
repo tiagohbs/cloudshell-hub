@@ -1,4 +1,4 @@
-// Backend: contas, gcloud, ssh. Compativel com ~/.cloudshell-accounts.json do script PowerShell.
+// Backend: contas, gcloud, ssh. As contas ficam em ~/.cloudshell-accounts.json (fora do app e do repositório).
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -491,7 +491,7 @@ async function stopVm(id) {
 }
 
 // executa um script na VM da conta (acorda a VM se preciso)
-// conta em uso no PC (Arauto/Vidente no Maestri): a reserva acompanha a troca de conta.
+// conta em uso no PC (agentes locais do orquestrador): a reserva acompanha a troca de conta.
 // A marca automatica comeca com "[PC]"; reservas manuais nao sao tocadas.
 const LOCAL_TAG = '[PC]';
 const LOCAL_FILE = path.join(os.homedir(), '.cshub', 'conta-local.json');
@@ -507,7 +507,7 @@ function setLocal(idOrEmail, motivo) {
     const manual = a.Reservada.split(' | ').filter((x) => !x.startsWith(LOCAL_TAG)).join(' | ').trim();
     if (manual) a.Reservada = manual; else delete a.Reservada;
   }
-  const texto = `${LOCAL_TAG} em uso no PC: ${motivo || 'Arauto e Vidente no Maestri (cota do Gemini compartilhada)'}`;
+  const texto = `${LOCAL_TAG} em uso no PC: ${motivo || 'agentes locais do orquestrador (cota do Gemini compartilhada)'}`;
   if (acc) {
     if (acc.Reservada && !acc.Reservada.startsWith(LOCAL_TAG)) acc.Reservada = acc.Reservada + ' | ' + texto;
     else acc.Reservada = texto;

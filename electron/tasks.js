@@ -26,7 +26,7 @@ const keyOf = (p, id) => `${p.Name.replace(/[^\w.-]/g, '_')}__${id}`;
 function preface(id, mirrorDir, readOnly, anexos = []) {
   return [
     `[Tarefa ${id} delegada pelo orquestrador do PC via Cloud Shell Hub]`,
-    `Você está em ${mirrorDir}, uma CÓPIA do projeto que esta no PC do Tiago. Não é um repositório git.`,
+    `Você está em ${mirrorDir}, uma CÓPIA do projeto que esta no PC do usuário. Não é um repositório git.`,
     'Antes de comecar, leia .cshub/LEIA-ME.txt. O trabalho sem commit do PC esta em .cshub/git-diff.patch e .cshub/git-status.txt.',
     'As pastas .cshub/ e .saida/ são do sistema de delegação: não fazem parte do projeto (nao as descreva nem as analise como código).',
     ...(readOnly ? ['TAREFA SOMENTE LEITURA: não altere, crie nem apague arquivos do projeto. Escreva apenas dentro de .saida/' + id + '/.'] : []),
@@ -71,7 +71,7 @@ async function start(projName, accName, { text, file, edit = true, plan = false,
   try {
     const { p, c } = project(projName);
     const reserva = cs.reservedReason(accName);
-    if (reserva && !useReserved) return { ok: false, reserved: true, error: `A conta ${accName} está reservada: ${reserva}. Use outra conta (ou --usar-reservada com autorização do Tiago).` };
+    if (reserva && !useReserved) return { ok: false, reserved: true, error: `A conta ${accName} está reservada: ${reserva}. Use outra conta (ou --usar-reservada com autorização do usuário).` };
     if (!ignoreHours) {
       const st = await cs.status(accName);
       if (st.weekHours != null && st.weekHours >= VM_LIMITE_H - VM_MARGEM_H) return { ok: false, hours: true, error: `A VM de ${accName} já usou ${Math.round(st.weekHours * 10) / 10} h dos ${VM_LIMITE_H} h da semana (restam menos de ${VM_MARGEM_H} h). Use outra conta (ou --ignorar-horas).` };
