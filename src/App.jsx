@@ -649,6 +649,8 @@ function SkillCard({ toast }) {
     else toast((r && r.error) || 'Falhou', 'err');
   };
   const copy = (t) => { window.clip.write(t); toast('Copiado'); };
+  const pick = async () => { const r = await window.skill.pickDir(); if (r && r.ok) { toast('Pasta de skills alterada. Clique em instalar para copiar a skill para lá.'); load(); } else if (r && !r.cancelado) toast((r && r.error) || 'Falhou', 'err'); };
+  const resetDir = async () => { await window.skill.setDir(null); load(); };
   const manual = 'Copy-Item "' + s.pastaOrigem + '" (New-Item -ItemType Directory -Force (Split-Path "' + s.caminho + '")).FullName -Force';
   return (
     <section className={'skillcard ' + (ok ? 'ok' : 'warn')}>
@@ -661,6 +663,7 @@ function SkillCard({ toast }) {
         <button className="mini" onClick={load}>Verificar de novo</button>
       </div>
       {!s.cshubNoPath && <p className="small warnline">O comando <code>cshub</code> não foi encontrado no PATH. O Claude do Maestri vai precisar do caminho completo (já está dentro da skill), ou adicione a pasta do app ao PATH.</p>}
+      <p className="small skilldir">Pasta de skills: <code>{s.pastaBase}</code> {s.personalizada ? '(personalizada)' : '(padrão do seu usuário)'} <button className="mini" onClick={pick}>Escolher outra pasta…</button>{s.personalizada && <> <button className="mini" onClick={resetDir}>Usar a padrão</button></>}</p>
       {!ok && (
         <details className="skillhelp" open={s.estado === 'ausente'}>
           <summary>Como instalar</summary>

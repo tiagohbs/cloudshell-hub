@@ -14,6 +14,7 @@ CONTAS
   cshub liberar <conta>              remove a reserva
   cshub cota [<conta>] [--acordar]     cota do Gemini/agy (semanal e 5 h) lida do /usage; sem conta = todas as ativas
   cshub skill [instalar]             estado da skill no PC (instalada, atualizada?) e instala/atualiza
+  cshub skill pasta [<caminho>|--padrao]   mostra ou troca a pasta de skills do seu orquestrador (padrão: ~/.claude/skills)
   cshub escolher                     contas LIVRES (não bloqueadas), da melhor para a pior; saída 5 se nenhuma
   cshub ssh <conta> [--espelho <projeto>] [--agy]
                                      abre um terminal da VM aqui mesmo (para um painel do Maestri)

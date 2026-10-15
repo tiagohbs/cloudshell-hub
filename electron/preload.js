@@ -28,7 +28,9 @@ contextBridge.exposeInMainWorld('cs', {
 
 contextBridge.exposeInMainWorld('skill', {
   status: call('skill:status'),
-  install: call('skill:install')
+  install: call('skill:install'),
+  setDir: call('skill:setDir'),
+  pickDir: call('skill:pickDir')
 });
 
 contextBridge.exposeInMainWorld('term', {

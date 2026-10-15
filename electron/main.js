@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, clipboard, shell, Menu, Tray, nativeImage, Notification } = require('electron');
+const { dialog, app, BrowserWindow, ipcMain, clipboard, shell, Menu, Tray, nativeImage, Notification } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const cs = require('./cs');
@@ -104,6 +104,12 @@ const wrap = (fn) => async (_e, ...a) => {
 // skill do Claude/Maestri
 ipcMain.handle('skill:status', wrap(() => skill.status()));
 ipcMain.handle('skill:install', wrap(() => skill.install()));
+ipcMain.handle('skill:setDir', wrap((dir) => skill.setBase(dir || null)));
+ipcMain.handle('skill:pickDir', wrap(async () => {
+  const r = await dialog.showOpenDialog(win || undefined, { title: 'Pasta de skills do seu orquestrador', defaultPath: skill.baseDir(), properties: ['openDirectory', 'createDirectory'] });
+  if (r.canceled || !r.filePaths[0]) return { ok: false, cancelado: true };
+  return skill.setBase(r.filePaths[0]);
+}));
 
 // contas
 ipcMain.handle('cs:overview', wrap(() => tasks.accountsOverview()));

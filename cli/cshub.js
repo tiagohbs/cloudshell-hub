@@ -21,6 +21,7 @@ CONTAS
   cshub liberar <conta>              remove a reserva
   cshub cota [<conta>] [--acordar]     cota do Gemini/agy (semanal e 5 h) lida do /usage; sem conta = todas as ativas
   cshub skill [instalar]             estado da skill no PC (instalada, atualizada?) e instala/atualiza
+  cshub skill pasta [<caminho>|--padrao]   mostra ou troca a pasta de skills do seu orquestrador (padrão: ~/.claude/skills)
   cshub escolher                     contas LIVRES (não bloqueadas), da melhor para a pior; saída 5 se nenhuma
   cshub ssh <conta> [--espelho <projeto>] [--agy]
                                      abre um terminal da VM aqui mesmo (para um painel do Maestri)
@@ -159,7 +160,11 @@ function localAgyHealth() {
     }
     case 'skill': {
       const sk = require('../electron/skill');
-      if (a1 === 'instalar') {
+      if (a1 === 'pasta') {
+        const r = a2 === '--padrao' ? sk.setBase(null) : a2 ? sk.setBase(a2) : { ok: true, pasta: sk.baseDir(), personalizada: sk.baseDir() !== sk.PADRAO };
+        if (!r.ok) fail(r.error);
+        print(r, 'Pasta de skills: ' + r.pasta + (r.personalizada ? ' (personalizada)' : ' (padrão)') + '\nRode: cshub skill instalar');
+      } else if (a1 === 'instalar') {
         const r = await sk.install();
         if (!r.ok) fail(r.error);
         print(r, 'Skill instalada em ' + r.caminho + (r.backup ? '\nCópia da anterior: ' + r.backup : '') + '\nReinicie a sessão do Claude no Maestri para ela ser relida.');
