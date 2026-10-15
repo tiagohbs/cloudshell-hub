@@ -18,6 +18,8 @@ if (!gotLock) app.quit();
 else app.on('second-instance', () => showWindow());
 
 let win = null;
+// No Windows a barra de tarefas respeita melhor o .ico; nos outros sistemas usa o .png
+const APP_ICON = nativeImage.createFromPath(path.join(__dirname, process.platform === 'win32' ? 'icon.ico' : 'icon.png'));
 let tray = null;
 let quitting = false;
 
@@ -70,7 +72,7 @@ function createWindow() {
     minHeight: 520,
     backgroundColor: '#0e1116',
     title: 'Cloud Shell Hub',
-    icon: path.join(__dirname, 'icon.png'),
+    icon: APP_ICON,
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -92,6 +94,7 @@ function createWindow() {
     else { showWindow(); send('app:close-ask'); }
   });
   win.on('closed', () => { term.killAll(); win = null; });
+  if (!APP_ICON.isEmpty()) win.setIcon(APP_ICON);
   win.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
 }
 
@@ -203,7 +206,7 @@ function notifyWin(title, body, force = false) {
   try {
     if (!Notification.isSupported()) return;
     if (!force && win && !win.isDestroyed() && win.isVisible() && win.isFocused()) return;   // já está olhando
-    const n = new Notification({ title, body, icon: path.join(__dirname, 'icon.png') });
+    const n = new Notification({ title, body, icon: APP_ICON });
     n.on('click', showWindow);
     n.show();
   } catch { /* notificação é opcional */ }
