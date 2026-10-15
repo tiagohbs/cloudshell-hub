@@ -914,7 +914,7 @@ export default function App() {
       <AskHost />
       <div className="thanks" aria-label="Agradecimento">
         <span className="thanks-heart" aria-hidden="true">♥</span>
-        <span>Obrigado ao pessoal da <b>MaxVision</b> pela parceria</span>
+        <span>Obrigado ao pessoal da <b>MaxVision Labs</b> pela parceria</span>
       </div>
       {welcome && <Welcome onClose={() => setWelcome(false)} />}
       {help && <Help topic={help} onClose={() => setHelp(null)} />}

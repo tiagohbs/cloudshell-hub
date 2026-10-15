@@ -75,7 +75,7 @@ Usar várias contas para somar cotas gratuitas pode violar os termos do Google C
 
 ## Agradecimentos
 
-Obrigado ao pessoal da **MaxVision** pela parceria.
+Obrigado ao pessoal da **MaxVision Labs** pela parceria.
 
 ## Licença e créditos
 
