@@ -26,6 +26,10 @@ npm install
 npm start
 ```
 
+### Se o app não abrir ("Electron failed to install correctly")
+
+O download do binário do Electron falhou (antivírus, proxy ou rede). O `npm start` já tenta de novo sozinho; se não resolver, rode `npm run verificar` e siga as instruções que ele mostra. Resumo: `node node_modules\electron\install.js`; com proxy, defina `ELECTRON_MIRROR`; ou copie `node_modules\electron\dist` e `path.txt` de outra instalação da mesma versão.
+
 ## Gerar o executável portátil
 
 ```powershell

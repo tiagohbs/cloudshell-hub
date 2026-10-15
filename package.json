@@ -23,11 +23,14 @@
   "main": "electron/main.js",
   "scripts": {
     "build": "vite build",
+    "prestart": "node scripts/verificar-electron.js",
     "start": "vite build && electron .",
     "dev": "vite build --watch",
     "dist": "vite build && electron-builder --win portable",
     "docs": "node scripts/gerar-docs.js",
-    "auditar": "node scripts/auditar-privacidade.js"
+    "auditar": "node scripts/auditar-privacidade.js",
+    "postinstall": "node scripts/verificar-electron.js --pos-install",
+    "verificar": "node scripts/verificar-electron.js"
   },
   "build": {
     "appId": "io.github.tiagohbs.cloudshellhub",
