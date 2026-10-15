@@ -457,5 +457,5 @@ button.askdanger:hover:not(:disabled) { background: var(--bad); border-color: va
 .thanks-heart { color: #EA4335; font-size: 13px; line-height: 1; }
 
 /* Ação secundária de destaque: pílula com fundo suave da cor de destaque, sem competir com o botão principal */
-button.tonal { background: color-mix(in srgb, var(--accent) 13%, transparent); border-color: color-mix(in srgb, var(--accent) 35%, transparent); color: var(--accent); font-weight: 600; margin-right: auto; display: inline-flex; align-items: center; gap: 6px; }
+button.tonal { background: color-mix(in srgb, var(--accent) 13%, transparent); border-color: color-mix(in srgb, var(--accent) 35%, transparent); color: var(--accent); font-weight: 600; margin-right: auto; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; }
 button.tonal:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 22%, transparent); border-color: var(--accent); }

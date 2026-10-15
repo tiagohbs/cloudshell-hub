@@ -285,7 +285,7 @@ function AddDialog({ onClose, onDone, onBatch, toast }) {
         <ValidInfo />
         <p className="note">Se a conta ainda não estiver logada no gcloud, o navegador abre para o login do Google. Nenhuma senha passa por este app.</p>
         <div className="actions">
-          <button type="button" className="ghost tonal" disabled={busy} onClick={onBatch}><span aria-hidden="true">＋</span> Adicionar várias de uma vez</button>
+          <button type="button" className="ghost tonal" title="Adicionar várias contas de uma vez" disabled={busy} onClick={onBatch}><span aria-hidden="true">＋</span> Adicionar várias</button>
           <button type="button" className="ghost" disabled={busy} onClick={onClose}>Cancelar</button>
           <button type="submit" className="primary" disabled={busy}>{busy ? 'Aguardando login…' : 'Adicionar'}</button>
         </div>
