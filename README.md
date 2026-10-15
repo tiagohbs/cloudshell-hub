@@ -39,6 +39,18 @@ npm run auditar   # confere que nada pessoal foi para o repositório
 
 O instalador **não leva contas nem projetos**: só `dist`, `electron`, a skill e o `package.json`. Contas e projetos ficam fora do app (veja [Onde ficam os dados](docs/COMO-FUNCIONA.md#onde-ficam-os-dados)), então cada pessoa começa do zero.
 
+## Instalação guiada por IA (para quem não programa)
+
+Não quer mexer no terminal? Peça a um assistente com acesso ao seu computador (Claude Code, Claude no desktop com acesso a pastas, Codex etc.) que faça tudo. Copie e cole, trocando nada:
+
+> Prepare tudo o que eu preciso para usar o Cloud Shell Hub e instale todas as dependências do projeto a partir deste link: https://github.com/tiagohbs/cloudshell-hub
+>
+> Faça o seguinte: confira se tenho Node.js 20 ou mais novo, Git, Google Cloud CLI (gcloud), Cliente OpenSSH do Windows e Chrome; instale o que faltar; clone o projeto em uma pasta minha; rode `npm install` e `npm start`. Se o Electron não abrir, rode `npm run verificar` e resolva.
+>
+> Caso algo precise da minha interferência (login no Google, aceitar termos, permissão de administrador, download bloqueado, etc.), pare, me avise e me dê o passo a passo, com linguagem simples, do que devo fazer. Depois que eu concluir, continue de onde parou. No fim, me diga o que ficou pronto e o que ainda depende de mim.
+
+Se você só quer **usar** o app, o mais fácil é baixar o `.exe` portátil na página de [Releases](https://github.com/tiagohbs/cloudshell-hub/releases), sem instalar Node nem rodar comandos.
+
 ## Uso rápido
 
 1. Aba **Contas** > **Adicionar contas** (uma por linha) e faça o login de cada uma.
