@@ -73,6 +73,10 @@ Usar várias contas para somar cotas gratuitas pode violar os termos do Google C
 - Contas e projetos ficam em arquivos na sua pasta de usuário; o app não guarda senhas nem tokens próprios.
 - Segredos (`.env`, `*.pem`, chaves…) não vão no espelho, salvo se você mandar com **Com segredos…**.
 
+## Agradecimentos
+
+Obrigado ao pessoal da **MaxVision** pela parceria.
+
 ## Licença e créditos
 
 [MIT](LICENSE) com **citação de créditos**: uso livre (pessoal, comercial, modificar, redistribuir), desde que mantenha o aviso de copyright e a linha

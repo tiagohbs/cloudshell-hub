@@ -912,6 +912,10 @@ export default function App() {
       </div>
 
       <AskHost />
+      <div className="thanks" aria-label="Agradecimento">
+        <span className="thanks-heart" aria-hidden="true">♥</span>
+        <span>Obrigado ao pessoal da <b>MaxVision</b> pela parceria</span>
+      </div>
       {welcome && <Welcome onClose={() => setWelcome(false)} />}
       {help && <Help topic={help} onClose={() => setHelp(null)} />}
       {adding && <AddDialog onClose={() => setAdding(false)} onDone={reload} onBatch={() => { setAdding(false); setBatch(true); }} toast={showToast} />}

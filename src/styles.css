@@ -450,3 +450,8 @@ button.askdanger:hover:not(:disabled) { background: var(--bad); border-color: va
 .welsteps code { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 0 5px; font-size: 12px; }
 .welsteps a { color: var(--accent); }
 .dialog label.welcheck { display: flex; align-items: center; gap: 8px; color: var(--text); font-size: 13px; }
+
+/* Selo de agradecimento: só visual, sem função (não captura cliques) */
+.thanks { position: fixed; right: 14px; bottom: 12px; z-index: 5; display: inline-flex; align-items: center; gap: 7px; padding: 6px 13px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); color: var(--muted); font-size: 12px; box-shadow: var(--shadow); pointer-events: none; user-select: none; opacity: .92; }
+.thanks b { color: var(--text); font-weight: 600; }
+.thanks-heart { color: #EA4335; font-size: 13px; line-height: 1; }
