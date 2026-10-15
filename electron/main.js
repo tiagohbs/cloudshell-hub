@@ -19,6 +19,7 @@ else app.on('second-instance', () => showWindow());
 
 let win = null;
 // No Windows a barra de tarefas respeita melhor o .ico; nos outros sistemas usa o .png
+const APP_ID = 'io.github.tiagohbs.cloudshellhub';
 const APP_ICON = nativeImage.createFromPath(path.join(__dirname, process.platform === 'win32' ? 'icon.ico' : 'icon.png'));
 let tray = null;
 let quitting = false;
@@ -95,6 +96,16 @@ function createWindow() {
   });
   win.on('closed', () => { term.killAll(); win = null; });
   if (!APP_ICON.isEmpty()) win.setIcon(APP_ICON);
+  // Sem atalho registrado, o Windows mostra na barra de tarefas o ícone do executável (o átomo do Electron no modo dev).
+  // setAppDetails grava o ícone do app na janela; o .ico precisa estar em disco de verdade (não dentro do asar).
+  if (process.platform === 'win32') {
+    try {
+      const dst = path.join(app.getPath('userData'), 'icon.ico');
+      fs.mkdirSync(path.dirname(dst), { recursive: true });
+      fs.copyFileSync(path.join(__dirname, 'icon.ico'), dst);
+      win.setAppDetails({ appId: APP_ID, appIconPath: dst, appIconIndex: 0 });
+    } catch { /* sem permissão: segue só com o ícone da janela */ }
+  }
   win.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
 }
 
@@ -271,7 +282,7 @@ async function checkTasks() {
 app.whenReady().then(() => {
   if (!gotLock) return;
   Menu.setApplicationMenu(null);
-  app.setAppUserModelId('io.github.tiagohbs.cloudshellhub');
+  app.setAppUserModelId(APP_ID);
   createWindow();
   setTimeout(checkTasks, 20000);
   setInterval(checkTasks, 60000);
