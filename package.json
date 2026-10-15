@@ -1,6 +1,6 @@
 {
   "name": "cloudshell-hub",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Launcher visual para varias contas do Google Cloud Shell",
   "license": "MIT",
   "author": "tiagohbs",
