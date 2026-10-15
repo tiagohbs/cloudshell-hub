@@ -9,8 +9,10 @@ const listen = (ch) => (cb) => {
 contextBridge.exposeInMainWorld('cs', {
   list: call('cs:list'),
   overview: call('cs:overview'),
+  liveTask: call('cs:liveTask'),
   status: call('cs:status'),
   add: call('cs:add'),
+  cancelLogin: call('cs:cancelLogin'),
   remove: call('cs:remove'),
   update: call('cs:update'),
   refresh: call('cs:refresh'),
@@ -70,5 +72,7 @@ contextBridge.exposeInMainWorld('appctl', {
   setSettings: call('app:setSettings'),
   closeChoice: (c) => ipcRenderer.send('app:close-choice', c),
   onCloseAsk: (cb) => { const h = () => cb(); ipcRenderer.on('app:close-ask', h); return () => ipcRenderer.removeListener('app:close-ask', h); },
+  testNotify: call('app:testNotify'),
+  onAviso: (cb) => { const h = (_e, a) => cb(a); ipcRenderer.on('app:aviso', h); return () => ipcRenderer.removeListener('app:aviso', h); },
   onSettings: (cb) => { const h = (_e, s) => cb(s); ipcRenderer.on('app:settings', h); return () => ipcRenderer.removeListener('app:settings', h); }
 });

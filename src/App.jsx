@@ -94,12 +94,14 @@ const Gear = () => (
 
 function SettingsPop({ onClose }) {
   const [mode, setMode] = useState(null);
+  const [notify, setNotify] = useState(true);
   useEffect(() => {
     if (!window.appctl) return undefined;
-    window.appctl.getSettings().then((r) => setMode(r.closeAction));
-    return window.appctl.onSettings((x) => setMode(x.closeAction));
+    window.appctl.getSettings().then((r) => { setMode(r.closeAction); setNotify(r.notifyTasks !== false); });
+    return window.appctl.onSettings((x) => { setMode(x.closeAction); setNotify(x.notifyTasks !== false); });
   }, []);
   const change = (m) => { setMode(m); window.appctl.setSettings({ closeAction: m }); };
+  const changeNotify = (v) => { setNotify(v); window.appctl.setSettings({ notifyTasks: v }); };
   const ask_ = mode === 'ask';
   return (
     <section className="settingspop" role="dialog" aria-label="Configurações">
@@ -115,6 +117,13 @@ function SettingsPop({ onClose }) {
         </div>
       )}
       <p className="hint">Na bandeja, o app continua rodando com os terminais abertos. Para sair de verdade, use o ícone da bandeja e clique em Sair.</p>
+      <div className="noteshead" style={{ marginTop: 4 }}><h3>Avisos de tarefas</h3></div>
+      <label className="switchrow">
+        <span>Avisar no Windows quando uma tarefa terminar ou falhar</span>
+        <input type="checkbox" role="switch" className="switch" checked={notify} onChange={(e) => changeNotify(e.target.checked)} />
+      </label>
+      <button className="ghost" style={{ justifySelf: 'start' }} onClick={() => window.appctl.testNotify()}>Testar aviso</button>
+      <p className="hint">O aviso só aparece se o app estiver aberto ou na bandeja. Falhas também ficam no sino, com o código para rastreio.</p>
     </section>
   );
 }
@@ -178,8 +187,31 @@ function Dot({ state }) {
   return <span className={`dot ${state}`} title={label} aria-label={label} />;
 }
 
-function AddDialog({ onClose, onDone, toast }) {
-  const [f, setF] = useState({ email: '', name: '', mode: 'agydirect', session: 'agy', command: '' });
+const shellUrl = () => 'https://shell.cloud.google.com/?authuser=0&show=terminal';
+
+// explicação da validação manual (cada conta precisa abrir o Cloud Shell uma vez no navegador)
+function ValidInfo() {
+  return (
+    <div className="validbox">
+      <b>Validação manual do Cloud Shell</b>
+      <p>Cada conta usa um Chrome só dela, aberto pelo app com perfil separado e sem usuário do Chrome logado. Por isso ela é sempre a conta 0 (<code>authuser=0</code>) e uma conta nunca atrapalha a outra.</p>
+      <p>Cada conta nova precisa ser liberada uma vez, à mão: use <b>Abrir no Chrome da conta</b>, entre com a conta (senha e verificação em duas etapas) se o Google pedir, aceite os termos do Cloud Shell e espere o terminal aparecer. Sem isso o app não consegue conectar na VM. Depois disso o login fica salvo naquele perfil.</p>
+    </div>
+  );
+}
+function LinkRow({ email, toast }) {
+  const url = shellUrl();
+  return (
+    <span className="linkrow">
+      <input readOnly value={url} onFocus={(e) => e.target.select()} aria-label="Link do Cloud Shell (conta 0)" />
+      <button type="button" className="ghost" onClick={() => { window.clip.write(url); toast('Link copiado (cole só no Chrome desta conta)'); }}>Copiar</button>
+      {email && <button type="button" className="ghost" onClick={() => window.cs.webShell(email)}>Abrir no Chrome da conta</button>}
+    </span>
+  );
+}
+
+function AddDialog({ onClose, onDone, onBatch, toast }) {
+  const [f, setF] = useState({ email: '', name: '', mode: 'agydirect', session: 'agy', command: '', authUser: '' });
   const [busy, setBusy] = useState(false);
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
   const submit = async (e) => {
@@ -215,8 +247,10 @@ function AddDialog({ onClose, onDone, toast }) {
             <input value={f.command} onChange={set('command')} placeholder="cd ~/projeto && bash" />
           </label>
         )}
+        <ValidInfo />
         <p className="note">Se a conta ainda não estiver logada no gcloud, o navegador abre para o login do Google. Nenhuma senha passa por este app.</p>
         <div className="actions">
+          <button type="button" className="ghost linkish" disabled={busy} onClick={onBatch}>Adicionar várias de uma vez</button>
           <button type="button" className="ghost" disabled={busy} onClick={onClose}>Cancelar</button>
           <button type="submit" className="primary" disabled={busy}>{busy ? 'Aguardando login…' : 'Adicionar'}</button>
         </div>
@@ -225,8 +259,118 @@ function AddDialog({ onClose, onDone, toast }) {
   );
 }
 
+// ---------- adicionar várias contas de uma vez ----------
+function parseBatch(text, existing) {
+  const emails = new Set(existing.map((a) => String(a.Email).toLowerCase()));
+  const names = new Set(existing.map((a) => a.Name));
+  const seen = new Set();
+  const rows = [];
+  for (const raw of String(text || '').split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line || line.startsWith('#')) continue;
+    const parts = line.split(/[\s,;\t]+/).filter(Boolean);
+    const email = parts[0];
+    const low = email.toLowerCase();
+    if (!/^[^\s@"'`$&|;<>()]+@[^\s@"'`$&|;<>()]+\.[^\s@"'`$&|;<>()]+$/.test(email)) { rows.push({ email, name: '', state: 'err', msg: 'e-mail inválido' }); continue; }
+    if (emails.has(low)) { rows.push({ email, name: '', state: 'skip', msg: 'já cadastrada' }); continue; }
+    if (seen.has(low)) { rows.push({ email, name: '', state: 'skip', msg: 'repetida na lista' }); continue; }
+    seen.add(low);
+    let name = (parts[1] || email.split('@')[0]).replace(/[^\w.\-]/g, '_').slice(0, 32) || 'conta';
+    const base = name;
+    for (let n = 2; names.has(name); n++) name = base.slice(0, 29) + '-' + n;
+    names.add(name);
+    rows.push({ email, name, state: 'wait', msg: '' });
+  }
+  return rows;
+}
+const BSTATE = { wait: 'na fila', run: 'aguardando login no navegador…', ok: 'pronta', err: 'falhou', skip: 'ignorada' };
+
+function BatchDialog({ accounts, onClose, onDone, toast }) {
+  const [text, setText] = useState('');
+  const [mode, setMode] = useState('agydirect');
+  const [rows, setRows] = useState(null);   // null = ainda editando a lista
+  const [busy, setBusy] = useState(false);
+  const stop = useRef(false);
+  const preview = parseBatch(text, accounts || []);
+  const toRun = preview.filter((r) => r.state === 'wait').length;
+
+  const upd = (i, p) => setRows((rs) => rs.map((r, k) => (k === i ? { ...r, ...p } : r)));
+  const go = async (list) => {
+    stop.current = false;
+    setBusy(true);
+    let ok = 0; let bad = 0;
+    for (let i = 0; i < list.length; i++) {
+      if (stop.current) break;
+      const r = list[i];
+      if (r.state !== 'wait' && r.state !== 'err') continue;
+      if (r.state === 'err' && !r.name) continue;   // e-mail inválido não tem como repetir
+      upd(i, { state: 'run', msg: '' });
+      const res = await window.cs.add({ email: r.email, name: r.name, mode, session: 'agy', command: '' });
+      if (res.ok) { ok++; upd(i, { state: 'ok', msg: '' }); }
+      else { bad++; upd(i, { state: 'err', msg: stop.current ? 'cancelada' : res.error }); }
+    }
+    setBusy(false);
+    onDone();
+    toast(`${ok} conta(s) adicionada(s)${bad ? `, ${bad} com falha` : ''}${stop.current ? ' (interrompido)' : ''}`, bad ? 'err' : undefined);
+  };
+  const start = () => { const list = preview; setRows(list); setTimeout(() => go(list), 0); };
+  const again = () => { const list = rows.map((r) => (r.state === 'err' && r.name ? { ...r, state: 'wait' } : r)); setRows(list); setTimeout(() => go(list), 0); };
+  const halt = () => { stop.current = true; window.cs.cancelLogin(); };
+
+  const done = rows && !busy;
+  const failed = rows ? rows.filter((r) => r.state === 'err' && r.name).length : 0;
+  return (
+    <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && !busy && onClose()}>
+      <div className="dialog batch" role="dialog" aria-label="Adicionar várias contas">
+        <h2>Adicionar várias contas</h2>
+        {!rows && (
+          <>
+            <label>Um e-mail por linha <span className="hint">opcional: apelido depois do e-mail</span>
+              <textarea autoFocus rows={9} value={text} onChange={(e) => setText(e.target.value)} placeholder={'ana@gmail.com\nbruno@gmail.com  bruno\ncarla@gmail.com;carla'} spellCheck={false} />
+            </label>
+            <label>Ao conectar
+              <select value={mode} onChange={(e) => setMode(e.target.value)}>
+                  {Object.entries(MODES).filter(([k]) => k !== 'custom').map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              </select>
+            </label>
+            <ValidInfo />
+            <p className="note">
+              {preview.length ? `${toRun} para adicionar${preview.length - toRun ? ` · ${preview.length - toRun} ignorada(s) ou inválida(s)` : ''}. ` : ''}
+              O app abre um Chrome separado para cada conta (perfil próprio, sempre a conta 0), uma por vez; em cada uma você entra e aprova. Contas que já estão logadas no gcloud entram na hora. Nenhuma senha passa por este app.
+            </p>
+          </>
+        )}
+        {rows && <ValidInfo />}
+        {rows && (
+          <ul className="batchlist">
+            {rows.map((r, i) => (
+              <li key={r.email + i} className={`b-${r.state}`}>
+                <span className="bdot" />
+                <span className="bmail">{r.email}{r.name && r.name !== r.email.split('@')[0] ? <em> · {r.name}</em> : null}</span>
+                <span className="bstate">{r.msg ? `${BSTATE[r.state]}: ${r.msg}` : BSTATE[r.state]}</span>
+                {r.state === 'ok' && (
+                  <span className="bnum">
+                    <button type="button" className="ghost" onClick={() => window.cs.webShell(r.email)}>Abrir no Chrome da conta</button>
+                    <button type="button" className="ghost" onClick={() => { window.clip.write(shellUrl()); toast('Link copiado (cole só no Chrome desta conta)'); }}>Copiar link</button>
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="actions">
+          {!rows && <><button type="button" className="ghost" onClick={onClose}>Cancelar</button><button type="button" className="primary" disabled={!toRun} onClick={start}>{toRun ? `Adicionar ${toRun} conta(s)` : 'Adicionar'}</button></>}
+          {busy && <button type="button" className="ghost" onClick={halt}>Parar</button>}
+          {done && failed > 0 && <button type="button" className="ghost" onClick={again}>Tentar de novo as {failed} que falharam</button>}
+          {done && <button type="button" className="primary" onClick={onClose}>Fechar</button>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function EditDialog({ acc, onClose, onDone, toast, onRenamed }) {
-  const [f, setF] = useState({ name: acc.Name, reserved: acc.Reservada || '', mode: acc.Mode || 'agydirect', session: acc.Session || 'agy', command: acc.Command || '' });
+  const [f, setF] = useState({ name: acc.Name, reserved: acc.Reservada || '', mode: acc.Mode || 'agydirect', session: acc.Session || 'agy', command: acc.Command || '', authUser: acc.AuthUser || '' });
   const [busy, setBusy] = useState(false);
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
   const submit = async (e) => {
@@ -266,6 +410,8 @@ function EditDialog({ acc, onClose, onDone, toast, onRenamed }) {
           <input value={f.reserved} onChange={set('reserved')} maxLength={160} placeholder="ex.: Arauto e Vidente (cota do Gemini compartilhada)" />
           <span className="hint">Conta reservada não recebe tarefas do cshub sem liberação explícita.</span>
         </label>
+        <LinkRow email={acc.Email} toast={toast} />
+        <ValidInfo />
         <p className="note">O e-mail não muda: para usar outra conta Google, adicione uma conta nova.</p>
         <div className="actions">
           <button type="button" className="ghost" disabled={busy} onClick={onClose}>Cancelar</button>
@@ -369,6 +515,12 @@ function Card({ acc, state, vm, met, quota: q, blocks, onQuota, onChanged, toast
               <button onClick={() => { setMenu(false); act('copy', () => window.cs.copy(acc.Name, {}), 'Comando copiado — cole no painel do Maestri'); }}>Copiar comando</button>
               <button onClick={() => { setMenu(false); act('refresh', () => window.cs.refresh(acc.Name), 'Endereço atualizado').then(onChanged); }}>Atualizar endereço</button>
               <button onClick={() => { setMenu(false); loadSessions(); }}>Ver sessões tmux</button>
+              <button onClick={async () => {
+                setMenu(false);
+                const r = await window.cs.liveTask(acc.Name);
+                if (r && r.ok) onEmbed(acc, { command: r.command, label: r.label });
+                else toast((r && r.error) || 'Não consegui abrir o acompanhamento', 'warn');
+              }}>Ver tarefa ao vivo</button>
               <button className="danger" onClick={async () => {
                 setMenu(false);
                 const a = await ask({ title: `Remover "${acc.Name}"?`, text: `${showEmail ? acc.Email : maskEmail(acc.Email)}\n\nVocê pode tirar a conta só da lista (o login no gcloud continua) ou também revogar o login.`, ok: 'Remover e revogar login', extra: 'Só da lista', danger: true });
@@ -496,6 +648,7 @@ export default function App() {
   const [accounts, setAccounts] = useState(null);
   const [states, setStates] = useState({});
   const [adding, setAdding] = useState(false);
+  const [batch, setBatch] = useState(false);
   const [tab, setTab] = useState('contas');
   const [settingsOpen, setSettingsOpen] = useState(false);
   useEffect(() => {
@@ -518,6 +671,10 @@ export default function App() {
   const [hideAll, setHideAll] = useState(() => store.get('cs.hideEmails', false));
   const [emailOv, setEmailOv] = useState(() => store.get('cs.emailOverrides', {}));
   const { toast, show: showToast, closeToast, notes, dismiss: dismissNote, clear: clearNotes } = useToast();
+  useEffect(() => {
+    if (!window.appctl || !window.appctl.onAviso) return undefined;
+    return window.appctl.onAviso((a) => showToast(a.msg, a.kind));
+  }, [showToast]);
   const [notesOpen, setNotesOpen] = useState(false);
   const [theme, setTheme] = useState(() => store.get('cs.theme', 'auto'));
 
@@ -713,7 +870,8 @@ export default function App() {
 
       <AskHost />
       {help && <Help topic={help} onClose={() => setHelp(null)} />}
-      {adding && <AddDialog onClose={() => setAdding(false)} onDone={reload} toast={showToast} />}
+      {adding && <AddDialog onClose={() => setAdding(false)} onDone={reload} onBatch={() => { setAdding(false); setBatch(true); }} toast={showToast} />}
+      {batch && <BatchDialog accounts={accounts} onClose={() => setBatch(false)} onDone={reload} toast={showToast} />}
       {toast && toast.note && (
         <div className={`toast ${toast.kind}`} role="alert">
           <span className="ticon" aria-hidden="true">!</span>

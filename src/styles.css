@@ -420,3 +420,27 @@ input.switch:disabled { opacity: .5; }
 @media (max-width: 560px) { .askacts { flex-wrap: wrap; } }
 button.askdanger { background: var(--bad-bg); border-color: var(--bad-line); color: var(--bad-text); font-weight: 600; }
 button.askdanger:hover:not(:disabled) { background: var(--bad); border-color: var(--bad); color: #fff; }
+
+/* cadastro de varias contas */
+.dialog.batch { width: min(560px, 100%); }
+.dialog.batch textarea { min-height: 150px; }
+.batchlist { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; max-height: 46vh; overflow: auto; }
+.batchlist li { display: grid; grid-template-columns: 10px 1fr auto; gap: 10px; align-items: center; padding: 8px 12px; border: 1px solid var(--line); border-radius: 12px; font-size: 13px; }
+.batchlist .bmail em { font-style: normal; color: var(--muted); }
+.batchlist .bstate { color: var(--muted); font-size: 12px; text-align: right; }
+.batchlist .bdot { width: 10px; height: 10px; border-radius: 50%; background: var(--line); }
+.batchlist .b-run .bdot { background: var(--warn-text); }
+.batchlist .b-ok .bdot { background: var(--good, #2e9e5b); }
+.batchlist .b-err .bdot { background: var(--bad); }
+.batchlist .b-err .bstate { color: var(--bad-text); }
+.ghost.linkish { margin-right: auto; text-decoration: underline; padding-left: 0; }
+
+/* validacao manual do Cloud Shell */
+.validbox { border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 12px; padding: 10px 14px; display: grid; gap: 6px; font-size: 12.5px; line-height: 1.45; color: var(--text2); }
+.validbox p { margin: 0; }
+.validbox code { background: var(--bg); border-radius: 6px; padding: 1px 5px; }
+.linkrow { display: flex; gap: 8px; align-items: center; }
+.linkrow input { flex: 1; min-width: 0; font-family: 'JetBrains Mono', Consolas, monospace; font-size: 12px; }
+.batchlist li { grid-template-columns: 10px 1fr auto; }
+.batchlist .bnum { grid-column: 2 / 4; display: flex; gap: 8px; align-items: center; justify-content: flex-end; }
+.batchlist .bnum input { width: 64px; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 5px 8px; color: var(--text); }

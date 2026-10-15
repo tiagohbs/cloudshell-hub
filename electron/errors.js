@@ -42,6 +42,8 @@ const TABLE = [
   [/Resposta inesperada da VM/i, 'CSH-ESPELHO-506'],
   [/Falha ao trazer/i, 'CSH-ESPELHO-507'],
   [/Fora do projeto|Caminho com/i, 'CSH-ESPELHO-508'],
+  [/espelho de .* est[aá] desatualizado/i, 'CSH-ESPELHO-510'],
+  [/n[aã]o posso aplicar/i, 'CSH-ESPELHO-511'],
   [/Defina a pasta do projeto no PC/i, 'CSH-ESPELHO-509'],
   // tarefas
   [/est[aá] reservada/i, 'CSH-TAREFA-601'],
@@ -54,11 +56,13 @@ const TABLE = [
   [/espelho ainda n[aã]o foi enviado/i, 'CSH-TAREFA-608'],
   [/agy n[aã]o est[aá] dispon/i, 'CSH-TAREFA-609'],
   [/gravar a tarefa/i, 'CSH-TAREFA-610'],
+  [/gravar o vigia|script de vigia/i, 'CSH-TAREFA-611'],
   [/agy n[aã]o iniciou/i, 'CSH-TAREFA-611'],
   [/ID de tarefa/i, 'CSH-TAREFA-612'],
   [/Tarefa n[aã]o encontrada/i, 'CSH-TAREFA-613'],
   [/agy parou/i, 'CSH-TAREFA-614'],
   [/Ainda rodando/i, 'CSH-TAREFA-615'],
+  [/VM de .* parou/i, 'CSH-TAREFA-618'],
   [/conex[aã]o caiu/i, 'CSH-TAREFA-616'],
   [/Nao consegui cancelar|N[aã]o consegui cancelar/i, 'CSH-TAREFA-617'],
   // cota
@@ -79,4 +83,6 @@ function tag(r) {
   }
   return r;
 }
-module.exports = { codeFor, tag, TABLE, GERAL };
+// motivos de falha de tarefa classificados pelo vigia da VM
+const MOTIVO_CODE = { cota: 'CSH-COTA-701', travada: 'CSH-TAREFA-701', 'tempo-maximo': 'CSH-TAREFA-702', servidor: 'CSH-TAREFA-703', rede: 'CSH-TAREFA-704', login: 'CSH-TAREFA-705', 'sem-resposta': 'CSH-TAREFA-706', falhou: 'CSH-TAREFA-707', morreu: 'CSH-TAREFA-708', 'segundo-plano': 'CSH-TAREFA-709', 'sem-resumo': 'CSH-TAREFA-710', 'comando-nao-encontrado': 'CSH-TAREFA-711', reiniciou: 'CSH-TAREFA-712' };
+module.exports = { codeFor, tag, TABLE, GERAL, MOTIVO_CODE };

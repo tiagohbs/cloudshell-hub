@@ -29,7 +29,7 @@ function find(list, id) {
 }
 
 // ---------- processos ----------
-function run(cmd, args, { timeout = 60000, shell = false, input } = {}) {
+function run(cmd, args, { timeout = 60000, shell = false, input, onChild, env } = {}) {
   return new Promise((resolve) => {
     let out = '';
     let done = false;
@@ -38,13 +38,14 @@ function run(cmd, args, { timeout = 60000, shell = false, input } = {}) {
       if (shell) {
         // Node 24 desaconselha args + shell: monta a linha de comando ja com aspas
         const q = (a) => (/[\s"()&|<>^%!]/.test(a) ? '"' + String(a).replace(/"/g, '\\"') + '"' : a);
-        child = spawn([cmd, ...args.map(q)].join(' '), { shell: true, windowsHide: true });
+        child = spawn([cmd, ...args.map(q)].join(' '), { shell: true, windowsHide: true, ...(env ? { env } : {}) });
       } else {
         child = spawn(cmd, args, { windowsHide: true });
       }
     } catch (e) {
       return resolve({ code: -1, out: String(e) });
     }
+    if (onChild) onChild(child);
     const finish = (code) => {
       if (done) return;
       done = true;
@@ -71,11 +72,45 @@ async function loggedAccounts() {
   return r.out.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
 }
 
+// ---------- Chrome com perfil próprio por conta ----------
+// Cada conta abre num Chrome só dela (pasta de perfil separada, sem usuário do Chrome logado): a conta é sempre a 0 (authuser=0).
+function chromeExe() {
+  const pf = [process.env.ProgramFiles, process.env['ProgramFiles(x86)'], process.env.LOCALAPPDATA].filter(Boolean);
+  for (const b of pf) { const p = path.join(b, 'Google', 'Chrome', 'Application', 'chrome.exe'); if (fs.existsSync(p)) return p; }
+  return null;
+}
+function profileDir(email) {
+  return path.join(process.env.LOCALAPPDATA || os.homedir(), 'CloudShellHub', 'chrome', String(email).toLowerCase().replace(/[^a-z0-9._-]/g, '_'));
+}
+const fwd = (p) => p.replace(/\\/g, '/');
+const chromeFlags = (email) => ['--user-data-dir=' + profileDir(email), '--no-first-run', '--no-default-browser-check'];
+// abre uma página no Chrome desta conta (cria o perfil na primeira vez)
+function openWeb(email, url) {
+  const exe = chromeExe();
+  if (!exe) return { ok: false, noChrome: true };
+  try { spawn(exe, [...chromeFlags(email), url], { detached: true, stdio: 'ignore', windowsHide: false }).unref(); return { ok: true, perfil: profileDir(email) }; }
+  catch (e) { return { ok: false, error: String(e && e.message || e) }; }
+}
+
 async function ensureLogin(email) {
   if ((await loggedAccounts()).includes(email)) return true;
-  // abre o navegador; espera o usuario concluir
-  await gcloud(['auth', 'login', email], { timeout: 5 * 60000 });
+  // abre o login do Google no Chrome desta conta (gcloud respeita a variável BROWSER); espera o usuario concluir
+  const exe = chromeExe();
+  const env = exe ? { ...process.env, BROWSER: `"${fwd(exe)}" --user-data-dir="${fwd(profileDir(email))}" --no-first-run --no-default-browser-check %s` } : undefined;
+  await gcloud(['auth', 'login', email], { env, timeout: 5 * 60000, onChild: (ch) => { loginChild = ch; } });
+  loginChild = null;
   return (await loggedAccounts()).includes(email);
+}
+// interrompe o login que estiver esperando o navegador (botão Parar do cadastro em lote)
+let loginChild = null;
+function cancelLogin() {
+  const ch = loginChild;
+  if (!ch) return { ok: true, none: true };
+  try {
+    if (process.platform === 'win32') spawn('taskkill', ['/pid', String(ch.pid), '/T', '/F'], { windowsHide: true });
+    else ch.kill();
+  } catch { /* já terminou */ }
+  return { ok: true };
 }
 
 // get-mount-command nao existe no Windows: usa a API do Cloud Shell (a mesma que o gcloud usa)
@@ -220,17 +255,20 @@ async function status(id) {
   }
 }
 
-async function add({ email, name, mode, session, command }) {
+const AUTH_RE = /^\d{1,2}$/;
+async function add({ email, name, mode, session, command, authUser }) {
   email = (email || '').trim();
   name = (name || '').trim() || email.split('@')[0];
   if (!EMAIL_RE.test(email)) return { ok: false, error: 'E-mail inválido' };
   if (!NAME_RE.test(name)) return { ok: false, error: 'Apelido: use letras, números, ponto, hífen ou sublinhado' };
   session = (session || 'agy').trim();
   if (!SESSION_RE.test(session)) return { ok: false, error: 'Nome de sessão tmux inválido' };
+  authUser = String(authUser == null ? '' : authUser).trim();
+  if (authUser && !AUTH_RE.test(authUser)) return { ok: false, error: 'O número da conta no navegador deve ser de 0 a 99' };
   const l = load();
   if (l.some((a) => a.Name === name || a.Email === email)) return { ok: false, error: 'Já existe conta com esse apelido ou e-mail' };
   if (!(await ensureLogin(email))) return { ok: false, error: 'Login no gcloud não concluído' };
-  l.push({ Name: name, Email: email, Mode: ['agy', 'agydirect', 'shell', 'custom'].includes(mode) ? mode : 'agydirect', Session: session, Command: command || '', User: '', Host: '', Port: 0 });
+  l.push({ Name: name, Email: email, Mode: ['agy', 'agydirect', 'shell', 'custom'].includes(mode) ? mode : 'agydirect', Session: session, Command: command || '', ...(authUser ? { AuthUser: authUser } : {}), User: '', Host: '', Port: 0 });
   save(l);
   loggedCache.at = 0;
   return { ok: true };
@@ -260,6 +298,11 @@ async function update(id, patch) {
   if (patch.Mode && ['agy', 'agydirect', 'shell', 'custom'].includes(patch.Mode)) acc.Mode = patch.Mode;
   if (patch.Session && SESSION_RE.test(patch.Session)) acc.Session = patch.Session;
   if (typeof patch.Command === 'string') acc.Command = patch.Command;
+  if (patch.AuthUser !== undefined) {
+    const n = String(patch.AuthUser == null ? '' : patch.AuthUser).trim();
+    if (n && !AUTH_RE.test(n)) return { ok: false, error: 'O número da conta no navegador deve ser de 0 a 99' };
+    if (n) acc.AuthUser = n; else delete acc.AuthUser;
+  }
   if (typeof patch.Reserved === 'string') {
     const r = patch.Reserved.replace(/[\r\n]+/g, ' ').trim().slice(0, 160);
     if (r) acc.Reservada = r; else delete acc.Reservada;
@@ -491,4 +534,4 @@ async function sshExec(id, script, { timeout = 180000 } = {}) {
   return { ok: true, code: r.code, out: r.out };
 }
 
-module.exports = { list, status, add, remove, update, refreshEndpoint, tmuxList, open, copyCommand, prepare, sshBase, remoteFor, metrics, stopVm, parseMetrics, sshExec, reservedReason, setLocal, getLocal };
+module.exports = { openWeb, chromeExe, profileDir, cancelLogin, list, status, add, remove, update, refreshEndpoint, tmuxList, open, copyCommand, prepare, sshBase, remoteFor, metrics, stopVm, parseMetrics, sshExec, reservedReason, setLocal, getLocal };

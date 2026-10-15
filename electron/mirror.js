@@ -10,7 +10,9 @@ const cs = require('./cs');
 const projects = require('./projects');
 
 const STATE = path.join(os.homedir(), '.cshub');
-const MIN_FREE = 1024 * 1024 * 1024;   // 1 GB livre no PC para comecar
+const MIN_FREE = 1024 * 1024 * 1024;   // teto: 1 GB livre so para envios grandes
+const MIN_FREE_FLOOR = 64 * 1024 * 1024;   // piso: abaixo disso nem tenta
+const SMALL_SEND = 50 * 1024 * 1024;       // envio incremental pequeno ignora o limiar
 const META = '.cshub';                 // pasta de metadados dentro do espelho
 
 // ---------- padroes de exclusao ----------
@@ -134,13 +136,26 @@ function lastSend(projName, accName) {
   } catch { return { ok: true, none: true }; }
 }
 
+// ---------- o espelho esta em dia com o PC? (so olha o PC e o manifesto; nao toca na VM) ----------
+async function pending(projName, accName) {
+  try {
+    const { c } = project(projName);
+    let old;
+    try { old = JSON.parse(fs.readFileSync(manifestFile(projName, accName), 'utf8')).files || {}; } catch { return { ok: true, none: true, total: 0, sample: [] }; }
+    const now = await walk(c.local, compile([...c.exclude, ...c.secrets, META]));
+    const diff = [];
+    for (const [r, st] of now) { const o = old[r]; if (!o || o[0] !== st.size || o[1] !== st.mtime) diff.push(r); }
+    for (const r of Object.keys(old)) if (!now.has(r)) diff.push(r);
+    return { ok: true, total: diff.length, sample: diff.slice(0, 5) };
+  } catch (e) { return { ok: false, error: String(e && e.message || e) }; }
+}
+
 // ---------- enviar ----------
 async function send(projName, accName, { full = false, withSecrets = false, force = false, log = () => {} } = {}) {
   try {
     const { p, c } = project(projName);
-    const free = os.freemem();
-    if (!force && free < MIN_FREE) {
-      return { ok: false, lowMemory: true, error: `Pouca memória livre no PC (${fmtMB(free)}). Espere o que estiver pesado terminar ou force o envio.` };
+    if (!force && os.freemem() < MIN_FREE_FLOOR) {
+      return { ok: false, lowMemory: true, error: `Pouca memória livre no PC (${fmtMB(os.freemem())}). Espere o que estiver pesado terminar ou force o envio.` };
     }
     return await lowPriority(async () => {
       const skipPatterns = [...c.exclude, ...(withSecrets ? [] : c.secrets), META];
@@ -169,6 +184,11 @@ async function send(projName, accName, { full = false, withSecrets = false, forc
         if (isFull || !o || o[0] !== st.size || o[1] !== st.mtime) { changed.push(r); bytes += st.size; }
       }
       const removed = isFull ? [] : Object.keys(old).filter((r) => !now.has(r));
+      // o limiar de memoria acompanha o volume a enviar (o envio e em fluxo, nao carrega os arquivos inteiros)
+      if (!force && bytes >= SMALL_SEND) {
+        const need = Math.min(MIN_FREE, bytes * 3 + 256 * 1024 * 1024);
+        if (os.freemem() < need) return { ok: false, lowMemory: true, error: `Pouca memória livre no PC (${fmtMB(os.freemem())}) para enviar ${fmtMB(bytes)} (precisa de ~${fmtMB(need)}). Espere o que estiver pesado terminar ou force o envio.` };
+      }
       if (avail != null && bytes * 1.1 > avail) return { ok: false, error: `Espaço insuficiente no Cloud Shell: precisa de ${fmtMB(bytes)}, livre ${fmtMB(avail)}.` };
 
       // 1) arquivos alterados, em fluxo
@@ -230,6 +250,16 @@ async function send(projName, accName, { full = false, withSecrets = false, forc
 }
 
 // ---------- trazer resultados ----------
+// git diff --no-index escreve os caminhos absolutos do Windows no cabecalho; reescreve com o caminho relativo do projeto
+function relPatch(f, out) {
+  const s = String(out || '');
+  if (!s.trim()) return '';
+  const at = s.search(/^@@ /m);
+  const head = `diff --git a/${f} b/${f}\n--- a/${f}\n+++ b/${f}\n`;
+  if (at >= 0) return head + s.slice(at);
+  return /Binary files/.test(s) ? `diff --git a/${f} b/${f}\nBinary files a/${f} and b/${f} differ\n` : '';
+}
+
 function parseFind(buf) {
   const parts = buf.split('\0');
   const m = new Map();
@@ -273,7 +303,8 @@ async function fetchResults(projName, accName, { log = () => {} } = {}) {
     const dest = path.join(c.results, accName.replace(/[^\w.-]/g, '_'), stamp());
     const files = path.join(dest, 'arquivos');
     await fsp.mkdir(files, { recursive: true });
-    const want = [...added, ...modified];
+    // ainda sem decidir os 'modificados': a data pode ter mudado sem o conteudo (ex.: o agente mutou e restaurou com cp)
+    let want = [...added, ...modified];
     if (want.length) {
       log(`Trazendo ${want.length} arquivo(s)…`);
       const x = tar.x({ cwd: files, strict: true });
@@ -282,10 +313,19 @@ async function fetchResults(projName, accName, { log = () => {} } = {}) {
       await done;
       if (rr.code !== 0) return { ok: false, error: 'Falha ao trazer os arquivos: ' + rr.err.trim().slice(-300), dest };
     }
+    // compara por conteudo com a copia do PC: arquivo igual so mudou de data -> nao entra como alterado
+    const iguais = [];
+    for (const f of [...modified]) {
+      let a = null; let b = null;
+      try { a = await fsp.readFile(path.join(c.local, f)); b = await fsp.readFile(path.join(files, f)); } catch {}
+      if (a && b && a.equals(b)) { iguais.push(f); modified.splice(modified.indexOf(f), 1); try { await fsp.rm(path.join(files, f)); } catch {} }
+    }
+    if (!added.length && !modified.length && !deleted.length) return { ok: true, none: true, iguais: iguais.length, soData: iguais };
     const lines = [
       `# Mudanças no espelho ${c.mirror} (${accName}) em relação ao último envio`,
       `# A = novo, M = alterado, D = apagado na nuvem (nada foi apagado no PC)`,
-      ...added.map((f) => `A ${f}`), ...modified.map((f) => `M ${f}`), ...deleted.map((f) => `D ${f}`), ''
+      ...added.map((f) => `A ${f}`), ...modified.map((f) => `M ${f}`), ...deleted.map((f) => `D ${f}`),
+      ...(iguais.length ? ['# = conteúdo idêntico ao do PC (só a data mudou): não entram como alterados', ...iguais.map((f) => `= ${f}`)] : []), ''
     ];
     await fsp.writeFile(path.join(dest, 'mudancas.txt'), lines.join('\n'));
     // patch dos arquivos alterados contra a versao atual do PC (conveniencia)
@@ -295,13 +335,65 @@ async function fetchResults(projName, accName, { log = () => {} } = {}) {
       const b = path.join(files, f);
       if (!fs.existsSync(a)) continue;
       const d = await git(c.local, ['diff', '--no-index', '--no-color', '--', a, b]);
-      patch += d.out;
+      patch += relPatch(f, d.out);
     }
     if (patch) await fsp.writeFile(path.join(dest, 'alteracoes.patch'), patch);
-    return { ok: true, dest, added: added.length, modified: modified.length, deleted: deleted.length };
+    return { ok: true, dest, added: added.length, modified: modified.length, deleted: deleted.length, iguais: iguais.length };
   } catch (e) {
     return { ok: false, error: String(e && e.message || e) };
   }
+}
+
+// ---------- aplicar o resultado num worktree, com conferencia ----------
+// Recusa tudo se algum arquivo local nao estiver igual ao que foi enviado; copia, lista o que mudou e deixa .saida/ de fora.
+async function apply(projName, accName, id, worktree, { dry = false, force = false, log = () => {} } = {}) {
+  try {
+    const { p, c } = project(projName);
+    const wt = path.resolve(String(worktree || ''));
+    if (!worktree || !fs.existsSync(wt) || !fs.statSync(wt).isDirectory()) return { ok: false, error: 'Não posso aplicar: a pasta de destino não existe: ' + worktree };
+    let sent;
+    try { sent = JSON.parse(fs.readFileSync(manifestFile(p.Name, accName), 'utf8')).files || {}; } catch { return { ok: false, error: 'Não posso aplicar: não há registro do último envio para esta conta. Rode cshub enviar.' }; }
+    const fr = await fetchResults(projName, accName, { log });
+    if (!fr.ok) return fr;
+    if (fr.none) return { ok: true, none: true, aplicados: [], novos: [], apagadosNaNuvem: [] };
+    const lines = fs.readFileSync(path.join(fr.dest, 'mudancas.txt'), 'utf8').split(/\r?\n/).filter((l) => /^[AMD] /.test(l));
+    const skipOut = (f) => f === '.saida' || f.startsWith('.saida/') || f === META || f.startsWith(META + '/');
+    const mods = []; const adds = []; const dels = [];
+    for (const l of lines) { const k = l[0]; const f = l.slice(2); if (skipOut(f) || f.split('/').includes('..')) continue; (k === 'M' ? mods : k === 'A' ? adds : dels).push(f); }
+    const same = path.resolve(c.local).toLowerCase() === wt.toLowerCase();
+    const problemas = [];
+    const read = (f) => { try { return fs.readFileSync(f); } catch { return null; } };
+    for (const f of mods) {
+      const dst = path.join(wt, f);
+      const o = sent[f];
+      const cur = read(dst);
+      if (cur === null) { problemas.push(`${f}: não existe no destino`); continue; }
+      if (same) {
+        const st = fs.statSync(dst);
+        if (!o || o[0] !== st.size || o[1] !== Math.floor(st.mtimeMs)) problemas.push(`${f}: mudou no PC depois do envio`);
+      } else {
+        const src = read(path.join(c.local, f));
+        if (src === null || !cur.equals(src)) problemas.push(`${f}: o destino é diferente do que foi enviado`);
+        else { const st = fs.statSync(path.join(c.local, f)); if (!o || o[0] !== st.size || o[1] !== Math.floor(st.mtimeMs)) problemas.push(`${f}: a pasta do PC mudou depois do envio (reenvie com cshub enviar)`); }
+      }
+    }
+    for (const f of adds) {
+      const cur = read(path.join(wt, f));
+      const nu = read(path.join(fr.dest, 'arquivos', f));
+      if (cur !== null && (nu === null || !cur.equals(nu))) problemas.push(`${f}: já existe no destino com outro conteúdo`);
+    }
+    if (problemas.length && !force) return { ok: false, conflitos: problemas, dest: fr.dest, error: `Não posso aplicar: ${problemas.length} arquivo(s) não conferem com o que foi enviado. Nada foi copiado.\n  ` + problemas.slice(0, 15).join('\n  ') + (problemas.length > 15 ? `\n  … e mais ${problemas.length - 15}` : '') };
+    const aplicados = []; const novos = [];
+    if (!dry) {
+      for (const f of [...mods, ...adds]) {
+        const dst = path.join(wt, f);
+        await fsp.mkdir(path.dirname(dst), { recursive: true });
+        await fsp.copyFile(path.join(fr.dest, 'arquivos', f), dst);
+      }
+    }
+    aplicados.push(...mods); novos.push(...adds);
+    return { ok: true, dry, id, destino: wt, aplicados, novos, apagadosNaNuvem: dels, ignorados: lines.length - mods.length - adds.length - dels.length, conflitosForcados: problemas, dest: fr.dest };
+  } catch (e) { return { ok: false, error: String(e && e.message || e) }; }
 }
 
 // ---------- traduzir caminho do PC para o espelho ----------
@@ -344,4 +436,4 @@ function paneCommand(projName, kind) {
   } catch (e) { return { ok: false, error: String(e && e.message || e) }; }
 }
 
-module.exports = { lastSend, send, fetchResults, translate, paneCommand, _i: { remote, target, project, stamp }, _test: { compile, walk, parseFind, pathspecExcludes } };
+module.exports = { lastSend, send, pending, apply, fetchResults, translate, paneCommand, _i: { remote, target, project, stamp }, _test: { compile, walk, parseFind, pathspecExcludes, relPatch } };

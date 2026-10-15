@@ -21,6 +21,9 @@ Três peças trabalham juntas:
 | `electron/projects.js` | Projetos (repo Git + espelho), preparar/sincronizar contas |
 | `electron/quota.js` | Medição e cache da cota do Gemini |
 | `electron/term.js` | Terminais embutidos (`@lydell/node-pty`) |
+| `electron/vigia.sh` | Script que roda **na VM** junto com cada tarefa (enviado por `tasks.start`): detecta agy travado, tempo máximo, classifica a falha e repete falha de servidor. Precisa ter fim de linha LF (`.gitattributes`) |
+| `electron/ver.sh` | Acompanhamento **somente leitura** de uma tarefa (envia-se à VM por `tasks.prepareLive`): formata o fluxo `stream-json` com `jq`, mostra erros e arquivos mudando. Usado por `cshub ao-vivo` e pelo menu "Ver tarefa ao vivo" |
+| `electron/monitor.js` | Lista local `~/.cshub/monitor.json` das tarefas disparadas; o `main.js` confere a cada 60 s (`tasks.peek`, **sem acordar a VM**) e avisa no Windows |
 | `electron/skill.js` | Status e instalação da skill no PC |
 | `electron/errors.js` | Códigos de erro `CSH-<ÁREA>-<n>` (ver abaixo) |
 | `src/App.jsx` | Abas Contas, cartões, avisos/sino, configurações, ajuda |
@@ -51,6 +54,15 @@ npm run dist       # gera release\Cloud Shell Hub 0.1.0.exe (portátil)
 - Segredos (`.env`, `*.pem`…) **nunca** vão ao espelho por padrão; envio com segredos exige duas confirmações.
 - O script de encerrar VM usa `$$` (PID do próprio shell) para não matar a si mesmo. Não troque.
 
+## Tarefas, falhas e avisos
+- Cada tarefa roda via `vigia.sh`: `--travado-min` (15) e `--max-min` (90) encerram o agy; o motivo vai para `motivo` (`cota|login|servidor|rede|travada|tempo-maximo|sem-resposta|segundo-plano|sem-resumo|falhou`; tarefas que editam só saem com 0 se `.saida/<id>/RESUMO.md` existir). `tasks.start` recusa espelho diferente do PC (`mirror.pending`), aceita `anexos`; `mirror.apply` (`cshub aplicar`) confere antes de copiar; `esperar` termina com a linha `CSH-FIM`. Falha de servidor/rede é repetida até 2x só em tarefas que não editam.
+- Códigos de saída do `cshub esperar`: 0 ok, 4 ainda rodando, 5 morreu, 6 cota, 7 travada/tempo máximo, 8 servidor/rede, 9 login. Códigos de erro por motivo: `errors.MOTIVO_CODE`.
+- `agy -p --output-format stream-json` (flag `--ao-vivo` do `cshub tarefa`) grava os eventos do agente em tempo real em `saida.json`; por padrão ainda é `json` (só no fim) até o formato ser validado numa tarefa real. `answerFrom` aceita NDJSON, mas o esquema dos eventos do agy **ainda não foi confirmado**.
+- `cshub acompanhar` = `ao-vivo` + `esperar` + `--trazer` num comando, para painéis de terminal de orquestradores (Maestri etc.): sai com o código da tarefa; `--resumo` reduz o fluxo a marcos (economiza tokens do agente que lê o painel).
+- `cshub rodar` roda um comando/script na VM (testes, mutação, QA) sob o mesmo vigia, sem agy e sem gastar cota; `tasks.start({command:true})`. O vigia considera "vivo": CPU da árvore de processos, arquivos do projeto alterados, logs crescendo e `touch $CSHUB_PULSO`.
+- O monitor do app **nunca** usa `cs.prepare` (acordaria a VM e gastaria horas); usa `tasks.peek`.
+- Notificações do Windows: `Notification` do Electron, `setAppUserModelId`, chave `notifyTasks` em `settings.json`.
+
 ## Convenções de código
 - **Textos para o usuário em português do Brasil, com acentos.** Não deixe mensagens sem acento ("nao", "voce", "sessao"). Strings de protocolo internas (nomes de estado como `concluida`, arquivos como `codigo`) ficam sem acento de propósito: não "corrija".
 - **Erros:** todo erro que chega ao usuário passa por `errors.tag()` (IPC `wrap()` em `main.js` e `fail()` na CLI) e ganha `(código CSH-ÁREA-n)`. Áreas: CONTA, VM, SSH, PROJ, ESPELHO, TAREFA, COTA, SKILL, APP, GERAL. Para um erro novo, adicione uma linha na `TABLE` de `errors.js` e, se fizer sentido, um texto amigável em `FRIENDLY` (`App.jsx`). Erro sem causa conhecida vira `CSH-GERAL-900` / `CSH-APP-900`.
@@ -68,3 +80,10 @@ npm run dist       # gera release\Cloud Shell Hub 0.1.0.exe (portátil)
 - Não faça commit/push sem ele pedir. Repositório: https://github.com/tiagohbs/cloudshell-hub (privado, branch `main`).
 - Se mudar o comportamento do `cshub`, atualize também `skill/cloudshell-hub/SKILL.md` (e reinstale a skill) e `skill/NUVEM_CLOUDSHELL.rascunho.md`, que é o que o Claude do Maestri lê.
 - Se mudar uma tela, atualize os passos em `src/Help.jsx` e este arquivo quando a estrutura mudar.
+
+
+## Notas de 14/10
+- `vigia.sh` do `rodar` carrega o nvm e trata 127/`command not found` como falha (`comando-nao-encontrado`, saída 12); `--impaciente` (7º argumento) encerra tarefa parada esperando segundo plano.
+- `tasks.listOn` marca `reiniciou` quando a VM bootou depois do início da tarefa; `wait` devolve `dead` se a conexão cai e a VM não está RUNNING.
+- `mirror.fetchResults` compara por conteúdo com a pasta do PC (arquivos só com data diferente ficam como `=`).
+- CLI: progresso vai para o stdout; saída com `quit()` (sem `process.exit`, que derrubava o libuv no Windows); `cshub saude` confere o agy local.

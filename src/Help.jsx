@@ -5,7 +5,7 @@ const TOPICS = {
     nome: 'Primeiros passos',
     passos: [
       { t: 'Para que serve o app', p: 'O Cloud Shell Hub liga várias contas do Google Cloud Shell, abre terminais nelas e deixa o Maestri mandar tarefas para os agentes (agy/Gemini) que rodam na nuvem.' },
-      { t: '1. Adicione suas contas', p: 'Na aba Contas, clique em "+ Adicionar conta". O app faz o login no gcloud e guarda o endereço da VM de cada conta.' },
+      { t: '1. Adicione suas contas', p: 'Na aba Contas, clique em "+ Adicionar conta". O app faz o login no gcloud e guarda o endereço da VM de cada conta. Para várias de uma vez, use "Adicionar várias de uma vez" nessa janela: cole os e-mails (um por linha) e aprove o login no navegador, conta por conta.' },
       { t: '2. Cadastre um projeto', p: 'Na aba Projetos, clique em "+ Adicionar projeto", informe o repositório Git e, se quiser, a pasta do PC para enviar por espelho.' },
       { t: '3. Prepare e envie', p: 'No projeto, use Preparar em cada conta (clona o repositório) ou Enviar do PC (espelho). Só contas com a VM ligada recebem arquivos.' },
       { t: '4. Trabalhe', p: 'Abra um terminal pela conta (Abrir no app ou Shell) ou deixe o Maestri delegar tarefas com o comando cshub. Os terminais ficam na aba Terminais.' },
@@ -21,8 +21,10 @@ const TOPICS = {
       { t: 'Cota e horas', p: 'As barras mostram quanto ainda resta de cota do Gemini e de horas de VM (limite de 50 h por semana). Para medir a cota, a VM precisa estar ligada.' },
       { t: 'Bloqueios', p: 'Uma conta fica bloqueada quando está em uso no PC pelo Maestri, está sem login, sem cota do Gemini ou com menos de 3 h de VM. O motivo aparece no cartão.' },
       { t: 'Abrir no app, Shell e Boost', p: 'Abrir no app inicia o agy num terminal; Shell abre um terminal comum. Boost abre o Cloud Shell no navegador para ativar a máquina maior (24 h).' },
+      { t: 'Ver tarefa ao vivo', p: 'No menu ⋯ do cartão, "Ver tarefa ao vivo" abre um terminal somente leitura com a tarefa mais recente da conta: o fluxo do agente (se a tarefa foi disparada com --ao-vivo), erros e arquivos mudando. Nada do que você digitar chega ao agente, e fechar o terminal não para a tarefa.' },
       { t: 'Menu ⋯', p: 'Tem Janela externa, Copiar comando, Editar conta, Atualizar endereço (use se der erro de conexão), Ver sessões tmux e Remover.' },
       { t: 'Barra do topo', p: 'Os ícones ocultam e-mails, abrem o Cloud Shell no navegador, verificam todas as contas, trocam o tema e mostram avisos e erros (sino).' },
+      { t: 'Avisos de tarefas no Windows', p: 'Quando uma tarefa delegada termina, falha, trava ou perde a VM, o app avisa no Windows e no sino, com um código para rastreio (CSH-…). Ligue ou desligue na engrenagem da barra do topo. O aviso só chega com o app aberto ou na bandeja.' },
       { t: 'Skill do Maestri', p: 'O cartão da skill mostra se a habilidade cloudshell-hub está instalada neste PC. Se não estiver, use Instalar skill e reinicie a sessão do Claude no Maestri.' }
     ]
   },

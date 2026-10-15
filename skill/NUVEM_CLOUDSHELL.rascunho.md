@@ -23,6 +23,7 @@
 | Resultados | Em `C:\Users\DEV\Documents\copianeural-nuvem\<conta>\`, fora do worktree. Revisar `RESUMO.md`, `mudancas.txt` e `alteracoes.patch`; aplicar à mão. | decidido |
 | Git | Nada da nuvem entra por `git add -A`. Commit só depois de validar. Push e deploy só com ordem do Tiago. | decidido |
 | Espera | Em painel próprio: `maestri recruit "Nuvem-<conta>" --preset "Shell" --command "cshub esperar … --json"`, lido com `maestri check`, fechado com `maestri dismiss`. Nunca na sessão do Maestro por mais de 10 minutos. | decidido |
+| Falhas e travamentos | Um vigia roda na VM junto com cada tarefa: encerra o agy travado (15 min sem sinal) ou além de 90 min, classifica a falha (cota, login, servidor, rede) e repete até 2x falha de servidor em tarefas de leitura. Códigos de saída do `cshub esperar`: 7 travada/tempo máximo, 8 servidor/rede, 9 sem login (além de 4, 5, 6). Máximo de 2 redisparos por tarefa; depois, relatar ao Tiago. O app avisa o Tiago no Windows quando uma tarefa termina ou falha. | decidido |
 | Cota do Gemini | Mínimos para disparar: curta 10%, média 25%, longa 40%. Média e longa com `--vigiar-cota 10 --parar-cota`. Nunca ativar créditos pagos. | decidido |
 | Modo do agy | Padrão ou `--leitura`. Não usar `--plano` (rodada extra de aprovação) nem `--livre` sem ordem do Tiago. | decidido |
 
@@ -53,3 +54,9 @@
 - A VM é descartada depois de cerca de 40 minutos sem sessão. Só `~` sobrevive, e o `~` some depois de 120 dias sem uso.
 - A versão do `agy` na nuvem vem da imagem do Google e muda sozinha. Se o comportamento mudar, confira `agy --version`.
 - Trocar o worktree (`cshub pasta-pc`) faz o próximo envio apagar na nuvem o que não existe no worktree novo, inclusive o que o agente criou e ainda não foi trazido. Rode `cshub trazer` antes de trocar.
+
+
+## Novidades (outubro)
+- `cshub tarefa --anexo <arquivo>` (repetível); recusa espelho velho (`--ignorar-espelho`).
+- Código 10 (parou esperando segundo plano) e 11 (sem RESUMO.md). Nunca peça segundo plano ao agy.
+- `esperar`/`acompanhar` terminam com `CSH-FIM {...}`; `resultado --texto`; `aplicar <id> <worktree> [--simular]`.
