@@ -33,7 +33,7 @@
     "verificar": "node scripts/verificar-electron.js"
   },
   "build": {
-    "appId": "io.github.tiagohbs.cloudshellhub",
+    "appId": "io.github.tiagohbs.cloudshellhub.app",
     "productName": "Cloud Shell Hub",
     "directories": {
       "output": "release"

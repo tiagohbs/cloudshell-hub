@@ -19,7 +19,7 @@ else app.on('second-instance', () => showWindow());
 
 let win = null;
 // No Windows a barra de tarefas respeita melhor o .ico; nos outros sistemas usa o .png
-const APP_ID = 'io.github.tiagohbs.cloudshellhub';
+const APP_ID = 'io.github.tiagohbs.cloudshellhub.app';
 const APP_ICON = nativeImage.createFromPath(path.join(__dirname, process.platform === 'win32' ? 'icon.ico' : 'icon.png'));
 let tray = null;
 let quitting = false;
