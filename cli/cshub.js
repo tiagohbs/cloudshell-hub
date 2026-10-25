@@ -41,7 +41,8 @@ CONTAS
 
 ESPELHO DO PC (sem Git)
   cshub projetos                     projetos e pastas (PC, espelho, resultados)
-  cshub projeto adicionar <nome> --pasta-pc <pasta> [--repo <url>] [--base main]   cadastra um projeto (espelho sem Git; --repo só para o fluxo com Git)
+  cshub projeto adicionar <nome> --pasta-pc <pasta> [--excluir <a,b,c>] [--repo <url>] [--base main]
+        cadastra um projeto (espelho sem Git; --repo só para o fluxo com Git). --excluir ACRESCENTA padrões à lista padrão (node_modules, dist, build, .git...), ex.: target,.scratchpad
   cshub projeto remover <nome>       tira o projeto do cadastro (não apaga a pasta do PC, o espelho na VM nem os resultados)
   cshub pasta-pc <projeto> [<pasta>] aponta o espelho para outra pasta do PC (ex.: o worktree da rodada); sem pasta, mostra para onde aponta
   cshub enviar <projeto> <conta> [--tudo] [--com-segredos] [--forcar]
@@ -100,7 +101,7 @@ const ORIENTA = {
 };
 
 // ---------- argumentos ----------
-const WITH_VALUE = new Set(['--pasta-pc', '--repo', '--base', '--permissao', '--confiar', '--importar', '--codigo', '--comando', '--travado-min', '--max-min', '--conta', '--espelho', '--arquivo', '--texto', '--minutos', '--modelo', '--esforco', '--cota-minima', '--vigiar-cota', '--anexo']);
+const WITH_VALUE = new Set(['--excluir', '--pasta-pc', '--repo', '--base', '--permissao', '--confiar', '--importar', '--codigo', '--comando', '--travado-min', '--max-min', '--conta', '--espelho', '--arquivo', '--texto', '--minutos', '--modelo', '--esforco', '--cota-minima', '--vigiar-cota', '--anexo']);
 const argv = process.argv.slice(2);
 const opt = {};
 const flags = new Set();
@@ -294,7 +295,7 @@ function localAgyHealth() {
       if (a1 === 'adicionar') {
         need(a2);
         if (!opt['pasta-pc'] && !opt.repo) fail('informe --pasta-pc <pasta do PC> (espelho sem Git) ou --repo <url>');
-        const r = await projects.add({ name: a2, repo: opt.repo || '', base: opt.base, mirror: opt['pasta-pc'] ? { LocalDir: opt['pasta-pc'] } : undefined });
+        const r = await projects.add({ name: a2, repo: opt.repo || '', base: opt.base, mirror: opt['pasta-pc'] ? { LocalDir: opt['pasta-pc'], ...(opt.excluir ? { Exclude: [...new Set([...projects.mirrorCfg({ Name: a2 }).exclude, ...opt.excluir.split(',').map((x) => x.trim()).filter(Boolean)])] } : {}) } : undefined });
         if (!r.ok) fail(r.error, r);
         print(r, `Projeto ${a2} cadastrado.${opt['pasta-pc'] ? ' Envie com: cshub enviar ' + a2 + ' <conta>' : ''}`);
       } else if (a1 === 'remover') {
