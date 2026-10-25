@@ -66,10 +66,45 @@ function run(cmd, args, { timeout = 60000, shell = false, input, onChild, env } 
 const gcloud = (args, opts) => run('gcloud', args, { shell: true, ...opts });
 
 // ---------- gcloud ----------
-async function loggedAccounts() {
-  const r = await gcloud(['auth', 'list', '--format=value(account)'], { timeout: 20000 });
+// Cada conta tem a própria config do gcloud (CLOUDSDK_CONFIG), para os logins não se misturarem.
+// Conta sem pasta própria (cadastrada antes disso) continua usando o gcloud global.
+const GCLOUD_DIR = path.join(os.homedir(), '.cshub', 'gcloud');
+const configDir = (email) => path.join(GCLOUD_DIR, String(email).toLowerCase().replace(/[^a-z0-9._@-]/g, '_'));
+function gcloudEnv(email) {
+  const d = configDir(email);
+  return fs.existsSync(d) ? { ...process.env, CLOUDSDK_CONFIG: d } : undefined;
+}
+const gcloudFor = (email, args, opts = {}) => gcloud(args, { ...opts, env: opts.env || gcloudEnv(email) });
+
+async function loggedAccounts(email) {
+  const r = await gcloudFor(email, ['auth', 'list', '--format=value(account)'], { timeout: 20000 });
   if (r.code !== 0) return [];
   return r.out.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+}
+
+// Projeto do GCP da conta: um só, "cshub-<conta de e-mail>", marcado com o rótulo cshub=1 para ser reencontrado.
+const PROJECT_FILTER = 'labels.cshub=1';
+function projectBase(email) {
+  const s = String(email).split('@')[0].toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  return ('cshub-' + s).slice(0, 30).replace(/-+$/, '');
+}
+async function ensureProject(email) {
+  const g = (args) => gcloudFor(email, args, { timeout: 120000 });
+  const setDefault = (id) => g(['config', 'set', 'project', id]);
+  const ex = await g(['projects', 'list', `--filter=${PROJECT_FILTER}`, '--format=value(projectId)']);
+  const found = ex.code === 0 ? ex.out.split(/\r?\n/).map((s) => s.trim()).find(Boolean) : null;
+  if (found) { await setDefault(found); return { ok: true, project: found, created: false }; }
+  const base = projectBase(email);
+  let last = '';
+  for (let i = 0; i < 4; i++) {
+    const id = i === 0 ? base : base.slice(0, 25).replace(/-+$/, '') + '-' + Math.random().toString(36).slice(2, 6);
+    const r = await g(['projects', 'create', id, `--name=${base}`, '--labels=cshub=1']);
+    if (r.code === 0) { await setDefault(id); return { ok: true, project: id, created: true }; }
+    last = r.out.trim().slice(-300);
+    if (/Terms of Service/i.test(last)) return { ok: false, error: `${email} ainda não aceitou os Termos de Serviço do Google Cloud. Abra https://console.cloud.google.com com essa conta, aceite os termos e rode: cshub login --importar ${email}` };
+    if (!/already exists|ALREADY_EXISTS|not available|in use/i.test(last)) break;   // id ocupado: tenta de novo com sufixo
+  }
+  return { ok: false, error: 'Não consegui criar o projeto do GCP: ' + last };
 }
 
 // ---------- Chrome com perfil próprio por conta ----------
@@ -93,13 +128,15 @@ function openWeb(email, url) {
 }
 
 async function ensureLogin(email) {
-  if ((await loggedAccounts()).includes(email)) return true;
+  if ((await loggedAccounts(email)).includes(email)) return true;
   // abre o login do Google no Chrome desta conta (gcloud respeita a variável BROWSER); espera o usuario concluir
   const exe = chromeExe();
-  const env = exe ? { ...process.env, BROWSER: `"${fwd(exe)}" --user-data-dir="${fwd(profileDir(email))}" --no-first-run --no-default-browser-check %s` } : undefined;
+  fs.mkdirSync(configDir(email), { recursive: true, mode: 0o700 });
+  const env = { ...process.env, CLOUDSDK_CONFIG: configDir(email) };
+  if (exe) env.BROWSER = `"${fwd(exe)}" --user-data-dir="${fwd(profileDir(email))}" --no-first-run --no-default-browser-check %s`;
   await gcloud(['auth', 'login', email], { env, timeout: 5 * 60000, onChild: (ch) => { loginChild = ch; } });
   loginChild = null;
-  return (await loggedAccounts()).includes(email);
+  return (await loggedAccounts(email)).includes(email);
 }
 // interrompe o login que estiver esperando o navegador (botão Parar do cadastro em lote)
 let loginChild = null;
@@ -118,7 +155,7 @@ const API = 'https://cloudshell.googleapis.com/v1/users/me/environments/default'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function accessToken(email) {
-  const r = await gcloud(['auth', 'print-access-token', `--account=${email}`], { timeout: 30000 });
+  const r = await gcloudFor(email, ['auth', 'print-access-token', `--account=${email}`], { timeout: 30000 });
   const t = r.out.trim().split(/\r?\n/).pop();
   if (r.code !== 0 || !t || /\s/.test(t)) throw new Error('Não consegui obter o token do gcloud para ' + email + ': ' + r.out.trim().slice(-300));
   return t;
@@ -183,7 +220,7 @@ async function resolveEndpoint(acc) {
       if (last) {
         warn = 'addPublicKey (' + last.status + '): ' + last.text.replace(/\s+/g, ' ').slice(0, 200);
         // fallback: o gcloud registra a chave ao preparar a conexao (--dry-run nao conecta)
-        const g = await gcloud(['cloud-shell', 'ssh', '--dry-run', '--authorize-session', `--account=${acc.Email}`], { timeout: 90000 });
+        const g = await gcloudFor(acc.Email, ['cloud-shell', 'ssh', '--dry-run', '--authorize-session', `--account=${acc.Email}`], { timeout: 90000 });
         warn += ' | fallback gcloud: ' + (/Pushing your public key[\s\S]*done/i.test(g.out) ? 'chave enviada' : g.out.replace(/\s+/g, ' ').slice(-160));
       }
       await sleep(3000);                        // tempo para a chave propagar
@@ -241,7 +278,7 @@ async function status(id) {
   const l = load();
   const acc = find(l, id);
   if (!acc) return { error: 'Conta não encontrada' };
-  const logged = (await loggedCached()).includes(acc.Email);
+  const logged = (await loggedCached(acc.Email)).includes(acc.Email);
   if (!logged) return { logged: false };
   try {
     const e = await envState(acc);
@@ -268,10 +305,151 @@ async function add({ email, name, mode, session, command, authUser }) {
   const l = load();
   if (l.some((a) => a.Name === name || a.Email === email)) return { ok: false, error: 'Já existe conta com esse apelido ou e-mail' };
   if (!(await ensureLogin(email))) return { ok: false, error: 'Login no gcloud não concluído' };
-  l.push({ Name: name, Email: email, Mode: ['agy', 'agydirect', 'shell', 'custom'].includes(mode) ? mode : 'agydirect', Session: session, Command: command || '', ...(authUser ? { AuthUser: authUser } : {}), User: '', Host: '', Port: 0 });
+  const proj = await ensureProject(email);   // preparação: cada conta ganha o próprio projeto cshub-<conta>; falha não impede o cadastro
+  l.push({ Name: name, Email: email, Mode: ['agy', 'agydirect', 'shell', 'custom'].includes(mode) ? mode : 'agydirect', Session: session, Command: command || '', ...(authUser ? { AuthUser: authUser } : {}), ...(proj.ok ? { Project: proj.project } : {}), User: '', Host: '', Port: 0 });
   save(l);
-  loggedCache.at = 0;
-  return { ok: true };
+  loggedCache.delete(email);
+  return { ok: true, ...(proj.ok ? { project: proj.project } : { aviso: proj.error }) };
+}
+
+// ---------- login pelo terminal (cshub login) ----------
+// gcloud auth login --no-launch-browser roda numa pasta temporária; quando termina, a pasta vira ~/.cshub/gcloud/<e-mail>,
+// o projeto cshub-<conta> é garantido e a conta é cadastrada.
+//   cshub login [apelido]              interativo: mostra o link e espera o código no próprio terminal
+//   cshub login --link                 para quem não tem terminal interativo (agentes): mostra o link e deixa um ajudante esperando o código
+//   cshub login --codigo <código> [apelido]   entrega o código ao ajudante e termina o cadastro
+//   cshub login --importar <e-mail>    só cadastra um login que já está guardado
+const PENDING = path.join(os.homedir(), '.cshub', 'login-pendente');
+const CODE_RE = /^[\w\-./~]{10,300}$/;
+const LINK_RE = /https:\/\/accounts\.google\.com\/\S+/;
+const gcloudAuthEnv = (dir) => ({ ...process.env, CLOUDSDK_CONFIG: dir });
+const readJson = (f) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return null; } };
+
+// confere o login feito na pasta temporária e a move para a pasta da conta (se a conta já existia, troca só as credenciais)
+async function adoptLogin(tmp) {
+  const r = await gcloud(['auth', 'list', '--format=value(account)'], { env: gcloudAuthEnv(tmp), timeout: 20000 });
+  const who = r.code === 0 ? r.out.split(/\r?\n/).map((s) => s.trim()).find(Boolean) : null;
+  if (!who || !EMAIL_RE.test(who)) { fs.rmSync(tmp, { recursive: true, force: true }); return { ok: false, error: 'Login no gcloud não concluído' }; }
+  const dest = configDir(who);
+  fs.mkdirSync(dest, { recursive: true, mode: 0o700 });
+  fs.cpSync(tmp, dest, { recursive: true, force: true });
+  fs.rmSync(tmp, { recursive: true, force: true });
+  try { fs.chmodSync(dest, 0o700); } catch {}
+  return { ok: true, email: who };
+}
+
+// garante o projeto da conta e cadastra (ou atualiza) a conta
+async function registerAccount(email, name) {
+  name = (name || '').trim() || email.split('@')[0];
+  if (!NAME_RE.test(name)) return { ok: false, error: 'Apelido: use letras, números, ponto, hífen ou sublinhado' };
+  const proj = await ensureProject(email);
+  const l = load();
+  let acc = l.find((a) => (a.Email || '').toLowerCase() === email.toLowerCase());
+  if (!acc && l.some((a) => a.Name === name)) return { ok: false, error: 'Já existe uma conta com o apelido ' + name };
+  if (!acc) {
+    acc = { Name: name, Email: email, Mode: 'agydirect', Session: 'agy', Command: '', User: '', Host: '', Port: 0 };
+    l.push(acc);
+  }
+  if (proj.ok) acc.Project = proj.project;
+  save(l);
+  loggedCache.delete(email);
+  return { ok: true, conta: acc.Name, email, config: configDir(email), project: proj.ok ? proj.project : null, projetoCriado: !!proj.created, ...(proj.ok ? {} : { aviso: proj.error }) };
+}
+
+async function loginCli({ name, importar } = {}) {
+  const nome = (name || '').trim();
+  if (nome && !NAME_RE.test(nome)) return { ok: false, error: 'Apelido: use letras, números, ponto, hífen ou sublinhado' };
+  if (importar) {
+    const email = String(importar).trim();
+    if (!EMAIL_RE.test(email)) return { ok: false, error: 'E-mail inválido' };
+    if (!fs.existsSync(configDir(email)) || !(await loggedAccounts(email)).includes(email)) return { ok: false, error: 'Não há login guardado para ' + email + ' em ' + configDir(email) + '. Rode cshub login sem --importar.' };
+    return registerAccount(email, nome);
+  }
+  fs.mkdirSync(GCLOUD_DIR, { recursive: true, mode: 0o700 });
+  const tmp = fs.mkdtempSync(path.join(GCLOUD_DIR, '.login-'));
+  const code = await new Promise((resolve) => {
+    const ch = spawn('gcloud', ['auth', 'login', '--no-launch-browser'], { stdio: 'inherit', shell: process.platform === 'win32', env: gcloudAuthEnv(tmp) });
+    ch.on('error', () => resolve(-1));
+    ch.on('close', resolve);
+  });
+  if (code !== 0) { fs.rmSync(tmp, { recursive: true, force: true }); return { ok: false, error: 'Login no gcloud não concluído' }; }
+  const a = await adoptLogin(tmp);
+  return a.ok ? registerAccount(a.email, nome) : a;
+}
+
+// Ajudante (processo separado, iniciado por loginLink): segura o gcloud esperando o código, que chega por arquivo.
+async function loginHelper() {
+  fs.mkdirSync(GCLOUD_DIR, { recursive: true, mode: 0o700 });
+  const tmp = fs.mkdtempSync(path.join(GCLOUD_DIR, '.login-'));
+  const f = (n) => path.join(PENDING, n);
+  fs.writeFileSync(f('estado.json'), JSON.stringify({ pid: process.pid, tmp, desde: Date.now() }));
+  const ch = spawn('gcloud', ['auth', 'login', '--no-launch-browser'], { stdio: ['pipe', 'pipe', 'pipe'], shell: process.platform === 'win32', env: gcloudAuthEnv(tmp) });
+  let saida = '';
+  let linkOk = false;
+  const onData = (d) => {
+    saida += d;
+    const m = !linkOk && saida.match(LINK_RE);
+    if (m) { linkOk = true; fs.writeFileSync(f('link.txt'), m[0]); }
+  };
+  ch.stdout.on('data', onData);
+  ch.stderr.on('data', onData);
+  const fim = (code, erro) => {
+    try { fs.writeFileSync(f('fim.json'), JSON.stringify({ code, ...(erro ? { erro } : {}) })); } catch {}
+    process.exit(0);
+  };
+  ch.on('error', (e) => fim(-1, String(e)));
+  ch.on('close', (code) => fim(code, code === 0 ? '' : saida.trim().slice(-300)));
+  const stop = () => { try { ch.kill(); } catch {} fs.rmSync(tmp, { recursive: true, force: true }); process.exit(1); };
+  process.on('SIGTERM', stop);
+  const deadline = Date.now() + 10 * 60000;
+  const timer = setInterval(() => {
+    if (fs.existsSync(f('codigo.txt'))) {
+      clearInterval(timer);
+      const c = fs.readFileSync(f('codigo.txt'), 'utf8').trim();
+      try { fs.rmSync(f('codigo.txt'), { force: true }); } catch {}
+      ch.stdin.end(c + '\n');
+    } else if (Date.now() > deadline) { clearInterval(timer); stop(); }
+  }, 500);
+}
+
+// passo 1: inicia o ajudante e devolve o link de login
+async function loginLink() {
+  fs.mkdirSync(path.dirname(PENDING), { recursive: true, mode: 0o700 });
+  const old = readJson(path.join(PENDING, 'estado.json'));
+  if (old && old.pid) { try { process.kill(old.pid); } catch {} }   // login pendente anterior: descarta (só pelo PID dele)
+  if (old && old.tmp && path.dirname(old.tmp) === GCLOUD_DIR) fs.rmSync(old.tmp, { recursive: true, force: true });
+  fs.rmSync(PENDING, { recursive: true, force: true });
+  fs.mkdirSync(PENDING, { recursive: true, mode: 0o700 });
+  spawn(process.execPath, [path.join(__dirname, '..', 'cli', 'cshub.js'), '_login-ajudante'], { detached: true, stdio: 'ignore', windowsHide: true }).unref();
+  for (let i = 0; i < 80; i++) {          // até ~40 s
+    await sleep(500);
+    const link = fs.existsSync(path.join(PENDING, 'link.txt')) && fs.readFileSync(path.join(PENDING, 'link.txt'), 'utf8').trim();
+    if (link) return { ok: true, link, proximo: 'Abra o link, entre com a conta e rode: cshub login --codigo <código> [apelido]' };
+    if (fs.existsSync(path.join(PENDING, 'fim.json'))) break;
+  }
+  const fim = readJson(path.join(PENDING, 'fim.json'));
+  return { ok: false, error: 'Não consegui obter o link de login do gcloud' + (fim && fim.erro ? ': ' + fim.erro : '') };
+}
+
+// passo 2: entrega o código ao ajudante, espera o gcloud terminar e cadastra a conta
+async function loginCode({ code, name } = {}) {
+  code = String(code || '').trim();
+  if (!CODE_RE.test(code)) return { ok: false, error: 'Código de verificação inválido' };
+  const nome = (name || '').trim();
+  if (nome && !NAME_RE.test(nome)) return { ok: false, error: 'Apelido: use letras, números, ponto, hífen ou sublinhado' };
+  const st = readJson(path.join(PENDING, 'estado.json'));
+  if (!st || !fs.existsSync(path.join(PENDING, 'link.txt'))) return { ok: false, error: 'Não há login pendente. Rode cshub login --link primeiro.' };
+  fs.writeFileSync(path.join(PENDING, 'codigo.txt'), code, { mode: 0o600 });
+  let fim = null;
+  for (let i = 0; i < 120 && !fim; i++) {   // até ~60 s
+    await sleep(500);
+    fim = readJson(path.join(PENDING, 'fim.json'));
+  }
+  if (!fim) return { ok: false, error: 'O gcloud não respondeu ao código a tempo. Rode cshub login --link de novo.' };
+  fs.rmSync(PENDING, { recursive: true, force: true });
+  if (fim.code !== 0) { fs.rmSync(st.tmp, { recursive: true, force: true }); return { ok: false, error: 'Login no gcloud não concluído' + (fim.erro ? ': ' + fim.erro : '') + '. O código vale uma vez só: rode cshub login --link de novo.' }; }
+  const a = await adoptLogin(st.tmp);
+  return a.ok ? registerAccount(a.email, nome) : a;
 }
 
 async function remove(id, logout) {
@@ -280,7 +458,10 @@ async function remove(id, logout) {
   if (!acc) return { ok: false, error: 'Conta não encontrada' };
   save(l.filter((a) => a !== acc));
   try { fs.unlinkSync(knownHosts(acc)); } catch {}
-  if (logout) await gcloud(['auth', 'revoke', acc.Email], { timeout: 20000 });
+  if (logout) {
+    await gcloudFor(acc.Email, ['auth', 'revoke', acc.Email], { timeout: 20000 });
+    try { fs.rmSync(configDir(acc.Email), { recursive: true, force: true }); } catch {}
+  }
   return { ok: true };
 }
 
@@ -386,12 +567,13 @@ async function copyCommand(id, { mode, command } = {}) {
 // ---------- estado, uso e recursos ----------
 const USAGE = path.join(os.homedir(), '.cloudshell-usage.json');
 const tokenCache = new Map();
-let loggedCache = { at: 0, list: [] };
+const loggedCache = new Map();
 
-async function loggedCached() {
-  if (Date.now() - loggedCache.at < 60000) return loggedCache.list;
-  const list = await loggedAccounts();
-  loggedCache = { at: Date.now(), list };
+async function loggedCached(email) {
+  const c = loggedCache.get(email);
+  if (c && Date.now() - c.at < 60000) return c.list;
+  const list = await loggedAccounts(email);
+  loggedCache.set(email, { at: Date.now(), list });
   return list;
 }
 async function cachedToken(email) {
@@ -534,4 +716,4 @@ async function sshExec(id, script, { timeout = 180000 } = {}) {
   return { ok: true, code: r.code, out: r.out };
 }
 
-module.exports = { openWeb, chromeExe, profileDir, cancelLogin, list, status, add, remove, update, refreshEndpoint, tmuxList, open, copyCommand, prepare, sshBase, remoteFor, metrics, stopVm, parseMetrics, sshExec, reservedReason, setLocal, getLocal };
+module.exports = { openWeb, chromeExe, profileDir, cancelLogin, list, status, add, loginCli, loginLink, loginCode, loginHelper, ensureProject, configDir, remove, update, refreshEndpoint, tmuxList, open, copyCommand, prepare, sshBase, remoteFor, metrics, stopVm, parseMetrics, sshExec, reservedReason, setLocal, getLocal };

@@ -41,6 +41,22 @@ Comando: o `cshub.cmd` da pasta do Cloud Shell Hub (ou só `cshub`, se a pasta e
    O `cshub tarefa` recusa conta em uso no PC ou reservada (`--usar-reservada`, só com autorização do usuário e os agentes donos parados), conta esgotada, e conta sem horas de VM (`--ignorar-horas`, só com motivo). `cshub escolher` lista as contas livres da melhor para a pior (VM ativa, mais cota, menos horas, menos tarefas); sai com código 5 se não há nenhuma.
 9. **Nunca ative créditos pagos, cobrança extra ("overages") ou AI credits**, mesmo que o `agy` sugira. Cota esgotada se resolve trocando de conta ou esperando a renovação.
 
+## Cadastrar ou refazer o login de uma conta
+Use quando `cshub contas` vem vazio, quando uma conta aparece `sem-login` ou quando uma tarefa sai com código 9. **O login é sempre do usuário**: o Google exige validação no navegador, e nenhum agente consegue fazê-lo sozinho. Funciona em qualquer agente, porque os dois passos são comandos comuns com `--json`, sem terminal interativo.
+
+1. **Passo 1, o link:** `cshub login --link --json` devolve `{"ok":true,"link":"https://accounts.google.com/…"}`. Entregue o link ao usuário e peça que entre **com a conta que quer cadastrar** (cuidado com o navegador já logado em outra conta). Um ajudante fica esperando o código por até 10 min; se passar disso, rode `--link` de novo.
+2. **Passo 2, o código:** o usuário cola o código que o Google mostrou. Rode `cshub login --codigo "<código>" [<apelido>] --json`. O código vale **uma vez só**: se falhar, volte ao passo 1. Sem apelido, vale a parte do e-mail antes do `@`.
+3. O `cshub` faz o resto sozinho: guarda o login em `~/.cshub/gcloud/<e-mail>/` (uma pasta por conta, nada se mistura nem toca o gcloud global), cria o projeto GCP **`cshub-<parte do e-mail antes do @>`** com o rótulo `cshub=1` (ou reaproveita o que já tem o rótulo) e cadastra a conta em `~/.cloudshell-accounts.json` com o campo `Project`.
+4. **Conferir:** `cshub contas` deve mostrar a conta `[LIVRE]`. Depois `cshub acordar <conta>`; se a conta nunca abriu o Cloud Shell, peça ao usuário para abrir shell.cloud.google.com com ela uma vez.
+
+Variações: `cshub login [<apelido>]` faz tudo de forma interativa num terminal de verdade (link e código no mesmo comando). `cshub login --importar <e-mail>` só cadastra um login que já está guardado em `~/.cshub/gcloud/<e-mail>/`.
+
+Cuidados:
+- Nunca copie, espelhe, comite nem cole em tarefa nada de `~/.cshub/gcloud/` ou o código de verificação: a pasta dá acesso à conta. Não aponte `cshub pasta-pc` para a pasta pessoal.
+- Não crie projeto à mão nem use `gen-lang-client-…` (do Gemini): o projeto de cada conta é o `cshub-<conta>`.
+- Não use `pkill -f`: a linha de comando do ajudante e do `agy` contém textos que casam com o padrão e você mata o próprio shell.
+- Se o projeto não puder ser criado, o cadastro termina com um `aviso`; relate ao usuário em vez de insistir. O caso mais comum é conta nova que ainda não aceitou os **Termos de Serviço do Google Cloud**: o usuário abre https://console.cloud.google.com com aquela conta, aceita os termos, e você roda `cshub login --importar <e-mail>` para criar o projeto sem novo login. Outras causas: limite de projetos da conta ou política da organização.
+
 ## Ciclo padrão (uma tarefa)
 0. **Conferir a conta do PC:** confirme que `cshub local` aponta para a conta que os agentes locais estão usando agora. O e-mail aparece no cabeçalho do `agy` no painel deles (`maestri check "<painel>"`); se não der para ver, pergunte ao usuário. Se mudou, rode `cshub local <e-mail>` antes de qualquer outra coisa.
 1. **Escolher a conta:** `cshub escolher --json` devolve as contas livres, da melhor para a pior. Para ver o porquê, `cshub contas --json` mostra o estado da VM, as horas de 7 dias, as tarefas rodando, a última cota medida (`cota.gemini.minimo`) e o campo `bloqueio` de cada conta (vazio = livre), sem acordar nenhuma VM. A cota pode estar desatualizada (`medidaHaMin`). Antes de uma tarefa longa, meça de novo a conta escolhida com `cshub cota <conta> --json` (leva uns 20 s e liga a VM se estiver suspensa).
@@ -54,7 +70,7 @@ Comando: o `cshub.cmd` da pasta do Cloud Shell Hub (ou só `cshub`, se a pasta e
    - `6`: cota. Ou ela esgotou durante a tarefa (a conta fica marcada até a renovação), ou caiu abaixo do limite de `--vigiar-cota`. Rode `cshub trazer` para salvar o que já foi feito e continue em outra conta. Não use `--continuar` nesse caso, porque a conversa ficou na conta anterior: descreva na nova tarefa o que já está pronto.
    - `7`: o `agy` ficou **travado** (sem saída e sem CPU por 15 min) ou passou do **tempo máximo** (90 min). O vigia da VM já encerrou a tarefa. `cshub trazer` salva o que existir; dispare de novo menor ou em outra conta.
    - `8`: **falha do servidor ou da rede** do Gemini/Antigravity (500/503, sobrecarga). Em tarefas de leitura o vigia já repetiu até 2 vezes sozinho. Espere alguns minutos ou use outra conta.
-   - `9`: a conta **perdeu o login**. Avise o usuário (Editar conta no app) e use outra conta.
+   - `9`: a conta **perdeu o login**. Avise o usuário e use outra conta; para refazer o login, siga "Cadastrar ou refazer o login de uma conta" (`cshub login --link`).
    - `10`: o `agy` **deixou testes/benchmarks em segundo plano e parou esperando** (`root agent idle; waiting up to 30m…`), sem entregar. Código 0 sem `RESUMO.md` agora conta como falha. Rode os testes com `cshub rodar` ou redispare mandando executar tudo em primeiro plano.
    - `11`: o `agy` terminou sem escrever o `RESUMO.md`. Confira o que ele editou (`cshub trazer`) antes de aplicar.
    - `12`: (`cshub rodar`) um comando do script **não existe na VM**. O `rodar` já carrega o nvm; se ainda faltar node/npx/ferramenta, o script saiu com 127 ou imprimiu `command not found`, e isso agora conta como falha.
@@ -153,7 +169,7 @@ O usuário acompanha pelo canvas. Para ver o `agy` trabalhando ao vivo, há tamb
 | Código 6 / "Cota insuficiente" ao disparar | Escolher outra conta com mais cota, ou dividir a tarefa |
 | Código 6 / "A cota do agy esgotou" | `cshub trazer`, depois redisparar o que faltou em outra conta |
 | "Nao consegui ler o /usage" / "o painel /usage nao apareceu" | O `agy` pode estar pedindo login: pedir ao usuário para abrir **agy no espelho** no app uma vez |
-| Estado `sem-login` em `cshub contas` | Pedir ao usuário para logar a conta no app (Contas > Adicionar ou Editar) |
+| Estado `sem-login` em `cshub contas` | Refazer o login: `cshub login --link`, o usuário abre o link e passa o código, depois `cshub login --codigo` (veja "Cadastrar ou refazer o login de uma conta"). No app: Contas > Adicionar ou Editar |
 | Resposta do `agy` falando de login ou autenticação | Pedir ao usuário para abrir **agy no espelho** no app uma vez nessa conta |
 
 ## Armadilhas do agy (aprendidas em 14/10)

@@ -14,6 +14,10 @@ const HELP = `cshub — Cloud Shell Hub pela linha de comando
 
 CONTAS
   cshub contas                       contas: [LIVRE] ou [BLOQUEADA: motivo] (em-uso-no-pc, reserva-manual, sem-cota-gemini, sem-horas-vm, sem-login), VM, horas 7d
+  cshub login [<apelido>]            loga uma conta pelo terminal (link + código), guarda a config isolada em ~/.cshub/gcloud/<e-mail>,
+        [--importar <e-mail>]        cria o projeto GCP cshub-<conta> (rótulo cshub=1) e cadastra a conta. --importar: só cadastra um login já guardado
+  cshub login --link                 sem terminal interativo (agentes), passo 1: mostra o link de login do Google e deixa um ajudante esperando o código
+  cshub login --codigo <código> [<apelido>]   passo 2: entrega o código, guarda a config isolada, cria o projeto e cadastra a conta
   cshub acordar <conta>              liga a VM (se suspensa) e confirma o acesso
   cshub local [<conta|e-mail>]       marca a conta em uso no PC (a do agy local do orquestrador); ela fica reservada e a anterior e liberada
         [--nenhuma]                  nenhuma conta em uso no PC
@@ -85,7 +89,7 @@ const ORIENTA = {
 };
 
 // ---------- argumentos ----------
-const WITH_VALUE = new Set(['--comando', '--travado-min', '--max-min', '--conta', '--espelho', '--arquivo', '--texto', '--minutos', '--modelo', '--esforco', '--cota-minima', '--vigiar-cota', '--anexo']);
+const WITH_VALUE = new Set(['--importar', '--codigo', '--comando', '--travado-min', '--max-min', '--conta', '--espelho', '--arquivo', '--texto', '--minutos', '--modelo', '--esforco', '--cota-minima', '--vigiar-cota', '--anexo']);
 const argv = process.argv.slice(2);
 const opt = {};
 const flags = new Set();
@@ -232,6 +236,21 @@ function localAgyHealth() {
       const r = await cs.update(a1, { Reserved: cmd === 'reservar' ? a2 : '' });
       if (!r.ok) fail(r.error, r);
       print({ ok: true, conta: a1, reservada: cmd === 'reservar' ? a2 : null }, cmd === 'reservar' ? `${a1} reservada: ${a2}` : `${a1} liberada.`);
+      break;
+    }
+    case '_login-ajudante':   // uso interno de login --link
+      await cs.loginHelper();
+      return;
+    case 'login': {
+      if (flags.has('--link')) {
+        const r = await cs.loginLink();
+        if (!r.ok) fail(r.error, r);
+        print(r, `Abra este link e entre com a conta:\n\n${r.link}\n\nDepois rode: cshub login --codigo <código> [apelido]`);
+        break;
+      }
+      const r = opt.codigo ? await cs.loginCode({ code: opt.codigo, name: a1 }) : await cs.loginCli({ name: a1, importar: opt.importar });
+      if (!r.ok) fail(r.error, r);
+      print(r,`${r.conta} <${r.email}> cadastrada.\n  config do gcloud: ${r.config}\n  projeto GCP:      ${r.project ? r.project + (r.projetoCriado ? ' (criado agora)' : '') : '(não definido) ' + r.aviso}`);
       break;
     }
     case 'acordar': {
