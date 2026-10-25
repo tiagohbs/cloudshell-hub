@@ -22,6 +22,11 @@ CONTAS
         [--permissao <modo>]         força outro valor de toolPermission nesta conta (ex.: o que o agy aceitar no lugar de always-proceed)
         [--confiar <pasta>]          marca uma pasta da VM como confiável (trustedWorkspaces)
   cshub preparar --padrao [<modo>|nenhum]   mostra ou muda o padrão para contas novas ("nenhum": o cshub não mexe no agy)
+  cshub agy-login <conta>            confere se o agy da VM está logado (--verificar, padrão). O login do agy é separado do gcloud
+        [--link]                     passo 1, sem terminal interativo: mostra o link inteiro (sem quebras) do login do agy
+        [--codigo <código>]          passo 2: digita o código na VM e confere o login
+  cshub remover <conta> [--simular]  tira a conta do cadastro e apaga o login local (~/.cshub/gcloud/<e-mail>). --simular só mostra o que faria.
+        [--apagar-projeto]           também apaga o projeto GCP cshub-<conta> (só se tiver o rótulo cshub=1). A VM e o login do agy nela ficam
   cshub acordar <conta>              liga a VM (se suspensa) e confirma o acesso
   cshub local [<conta|e-mail>]       marca a conta em uso no PC (a do agy local do orquestrador); ela fica reservada e a anterior e liberada
         [--nenhuma]                  nenhuma conta em uso no PC
@@ -36,6 +41,8 @@ CONTAS
 
 ESPELHO DO PC (sem Git)
   cshub projetos                     projetos e pastas (PC, espelho, resultados)
+  cshub projeto adicionar <nome> --pasta-pc <pasta> [--repo <url>] [--base main]   cadastra um projeto (espelho sem Git; --repo só para o fluxo com Git)
+  cshub projeto remover <nome>       tira o projeto do cadastro (não apaga a pasta do PC, o espelho na VM nem os resultados)
   cshub pasta-pc <projeto> [<pasta>] aponta o espelho para outra pasta do PC (ex.: o worktree da rodada); sem pasta, mostra para onde aponta
   cshub enviar <projeto> <conta> [--tudo] [--com-segredos] [--forcar]
   cshub trazer <projeto> <conta>     traz o que mudou no espelho para a pasta de resultados
@@ -93,7 +100,7 @@ const ORIENTA = {
 };
 
 // ---------- argumentos ----------
-const WITH_VALUE = new Set(['--permissao', '--confiar', '--importar', '--codigo', '--comando', '--travado-min', '--max-min', '--conta', '--espelho', '--arquivo', '--texto', '--minutos', '--modelo', '--esforco', '--cota-minima', '--vigiar-cota', '--anexo']);
+const WITH_VALUE = new Set(['--pasta-pc', '--repo', '--base', '--permissao', '--confiar', '--importar', '--codigo', '--comando', '--travado-min', '--max-min', '--conta', '--espelho', '--arquivo', '--texto', '--minutos', '--modelo', '--esforco', '--cota-minima', '--vigiar-cota', '--anexo']);
 const argv = process.argv.slice(2);
 const opt = {};
 const flags = new Set();
@@ -254,6 +261,48 @@ function localAgyHealth() {
       const r = await cs.preparar(a1, { permissao: opt.permissao, confiar: opt.confiar ? [opt.confiar] : [] });
       if (!r.ok) fail(r.error, r);
       print(r, `${r.conta}: toolPermission = ${r.toolPermission || '(não definido)'}${r.mudou.length ? '\n  alterado: ' + r.mudou.join(', ') : '\n  nada a alterar (já estava assim)'}`);
+      break;
+    }
+    case 'agy-login': {
+      need(a1);
+      if (flags.has('--link')) {
+        const r = await cs.agyLoginLink(a1);
+        if (!r.ok) fail(r.error, r);
+        print(r, `Abra este link e entre com a conta ${a1}:\n\n${r.link}\n\nDepois rode: cshub agy-login ${a1} --codigo <código>`);
+        break;
+      }
+      if (opt.codigo) {
+        const r = await cs.agyLoginCode(a1, opt.codigo);
+        if (!r.ok) fail(r.error, r);
+        print(r, `${a1}: agy logado.`);
+        break;
+      }
+      const r = await cs.agyCheck(a1);
+      if (!r.ok) fail(r.error, r);
+      print(r, r.logado ? `${a1}: agy logado.` : `${a1}: agy SEM login. Rode: cshub agy-login ${a1} --link`);
+      if (!r.logado) quit(9);
+      break;
+    }
+    case 'remover': {
+      need(a1);
+      const r = await cs.removeAccount(a1, { apagarProjeto: flags.has('--apagar-projeto'), simular: flags.has('--simular') });
+      if (!r.ok) fail(r.error, r);
+      print(r, `${r.simulado ? 'Simulação (nada foi alterado). Faria:' : 'Feito:'}\n  - ${r.passos.join('\n  - ')}\nFica: ${r.fica.join('; ')}`);
+      break;
+    }
+    case 'projeto': {
+      if (a1 === 'adicionar') {
+        need(a2);
+        if (!opt['pasta-pc'] && !opt.repo) fail('informe --pasta-pc <pasta do PC> (espelho sem Git) ou --repo <url>');
+        const r = await projects.add({ name: a2, repo: opt.repo || '', base: opt.base, mirror: opt['pasta-pc'] ? { LocalDir: opt['pasta-pc'] } : undefined });
+        if (!r.ok) fail(r.error, r);
+        print(r, `Projeto ${a2} cadastrado.${opt['pasta-pc'] ? ' Envie com: cshub enviar ' + a2 + ' <conta>' : ''}`);
+      } else if (a1 === 'remover') {
+        need(a2);
+        if (!(await projects.list()).some((x) => x.Name === a2)) fail('Projeto não encontrado');
+        const r = await projects.remove(a2);
+        print(r, `Projeto ${a2} removido do cadastro (a pasta do PC, o espelho na VM e os resultados não foram apagados).`);
+      } else fail('use: cshub projeto adicionar <nome> --pasta-pc <pasta> | cshub projeto remover <nome>');
       break;
     }
     case '_login-ajudante':   // uso interno de login --link

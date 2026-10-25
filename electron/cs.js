@@ -778,4 +778,81 @@ async function sshExec(id, script, { timeout = 180000 } = {}) {
   return { ok: true, code: r.code, out: r.out };
 }
 
-module.exports = { openWeb, chromeExe, profileDir, cancelLogin, list, status, add, preparar, getPrefs, setPrefs, loginCli, loginLink, loginCode, loginHelper, ensureProject, configDir, remove, update, refreshEndpoint, tmuxList, open, copyCommand, prepare, sshBase, remoteFor, metrics, stopVm, parseMetrics, sshExec, reservedReason, setLocal, getLocal };
+// ---------- excluir conta (cshub remover) ----------
+// Tira a conta do cadastro e apaga o login local dela (~/.cshub/gcloud/<e-mail>). O projeto GCP só é apagado com apagarProjeto
+// (e só se tiver o rótulo cshub=1); a VM do Cloud Shell, o login do agy nela e os resultados em ~/Documents/<projeto>-nuvem ficam.
+async function removeAccount(id, { apagarProjeto = false, simular = false } = {}) {
+  const l = load();
+  const acc = find(l, id);
+  if (!acc) return { ok: false, error: 'Conta não encontrada' };
+  const dir = configDir(acc.Email);
+  const temLogin = fs.existsSync(dir);
+  const passos = [`tirar ${acc.Name} <${acc.Email}> do cadastro`];
+  if (temLogin) passos.push(`revogar e apagar o login local (${dir})`);
+  if (apagarProjeto) passos.push(acc.Project ? `apagar o projeto GCP ${acc.Project} (o Google guarda 30 dias; só se tiver o rótulo cshub=1)` : 'apagar o projeto GCP (a conta não tem projeto registrado: nada a apagar)');
+  const fica = ['a VM do Cloud Shell da conta e o login do agy nela', 'os resultados em ~/Documents/<projeto>-nuvem', ...(apagarProjeto ? [] : [`o projeto GCP ${acc.Project || '(nenhum)'}`])];
+  if (simular) return { ok: true, simulado: true, conta: acc.Name, passos, fica };
+  let projetoApagado = null;
+  if (apagarProjeto && acc.Project) {
+    if (!temLogin) return { ok: false, error: 'Sem o login local da conta não dá para apagar o projeto. Nada foi alterado.' };
+    const lab = await gcloudFor(acc.Email, ['projects', 'describe', acc.Project, '--format=value(labels.cshub)'], { timeout: 60000 });
+    if (lab.code !== 0 || lab.out.trim().split(/\r?\n/).pop() !== '1') return { ok: false, error: `O projeto ${acc.Project} não tem o rótulo cshub=1 (ou não foi possível conferir): por segurança não o apago. Nada foi alterado.` };
+    const del = await gcloudFor(acc.Email, ['projects', 'delete', acc.Project, '--quiet'], { timeout: 120000 });
+    if (del.code !== 0) return { ok: false, error: 'Não consegui apagar o projeto ' + acc.Project + ': ' + del.out.trim().slice(-200) + ' Nada foi alterado.' };
+    projetoApagado = acc.Project;
+  }
+  save(l.filter((a) => a !== acc));
+  try { fs.unlinkSync(knownHosts(acc)); } catch {}
+  const loc = getLocal();
+  if (loc && (loc.email || '').toLowerCase() === acc.Email.toLowerCase()) { try { fs.unlinkSync(LOCAL_FILE); } catch {} }
+  if (temLogin) {
+    await gcloudFor(acc.Email, ['auth', 'revoke', acc.Email], { timeout: 20000 });
+    try { fs.rmSync(dir, { recursive: true, force: true }); } catch {}
+  }
+  loggedCache.delete(acc.Email);
+  return { ok: true, conta: acc.Name, email: acc.Email, passos, fica, projetoApagado };
+}
+
+// ---------- login do agy na VM (cshub agy-login) ----------
+// O agy da VM tem login próprio (não é o do gcloud). Roda numa sessão tmux da VM: o link sai inteiro (sem quebras) e o código é digitado nela.
+const AGY_TMUX = 'cshub-agy-login';
+const AGY_NOLOGIN_RE = /authentication required|not signed in|Run 'agy' to log in/i;
+const AGY_CODE_RE = /^[\w\-./~]{10,300}$/;
+const agyEnv = (env) => { if (env && !/^[\w.=\/-]+$/.test(env)) throw new Error('env inválido'); return env ? `env ${env} ` : ''; };
+
+async function agyCheck(id, { env = '' } = {}) {
+  const r = await sshExec(id, `${agyEnv(env)}timeout 60 agy -p "responda apenas: ok" 2>&1 | tail -3`, { timeout: 90000 });
+  if (!r.ok) return r;
+  const out = r.out.trim();
+  return { ok: true, logado: !AGY_NOLOGIN_RE.test(out) && out.length > 0, resposta: out.slice(-200) };
+}
+
+async function agyLoginLink(id, { env = '' } = {}) {
+  const script = `tmux kill-session -t ${AGY_TMUX} 2>/dev/null; tmux new-session -d -s ${AGY_TMUX} -x 2000 -y 60 '${agyEnv(env)}agy'; sleep 4; tmux send-keys -t ${AGY_TMUX} Enter; sleep 4; tmux capture-pane -J -p -t ${AGY_TMUX} -S -80`;
+  const r = await sshExec(id, script, { timeout: 60000 });
+  if (!r.ok) return r;
+  const lines = r.out.split(/\r?\n/).map((x) => x.trim());
+  const i = lines.findIndex((x) => x.startsWith('https://accounts.google.com/'));
+  if (i < 0) {
+    await sshExec(id, `tmux kill-session -t ${AGY_TMUX} 2>/dev/null`, { timeout: 20000 });
+    const jaLogado = !/not signed in|Select login method|authorization code/i.test(r.out);
+    return { ok: false, error: jaLogado ? 'O agy desta conta parece já estar logado. Confira com: cshub agy-login <conta> --verificar' : 'Não consegui obter o link de login do agy. Tela: ' + r.out.replace(/\s+/g, ' ').slice(-200) };
+  }
+  let link = '';
+  for (const x of lines.slice(i)) { if (!x || x.startsWith('─') || /\s/.test(x)) break; link += x; }   // junta linhas se o agy tiver quebrado o link
+  return { ok: true, link };
+}
+
+async function agyLoginCode(id, code, { env = '' } = {}) {
+  code = String(code || '').trim();
+  if (!AGY_CODE_RE.test(code)) return { ok: false, error: 'Código de verificação inválido' };
+  const script = `tmux has-session -t ${AGY_TMUX} 2>/dev/null || { echo @@SEMSESSAO; exit 3; }; tmux send-keys -t ${AGY_TMUX} -l '${code}'; sleep 1; tmux send-keys -t ${AGY_TMUX} Enter; sleep 12; tmux kill-session -t ${AGY_TMUX} 2>/dev/null; echo @@FEITO`;
+  const r = await sshExec(id, script, { timeout: 60000 });
+  if (!r.ok) return r;
+  if (/@@SEMSESSAO/.test(r.out)) return { ok: false, error: 'Não há login do agy em andamento nesta conta. Rode cshub agy-login <conta> --link primeiro.' };
+  const c = await agyCheck(id, { env });
+  if (!c.ok) return c;
+  return c.logado ? { ok: true, logado: true } : { ok: false, error: 'O agy ainda não está logado depois do código. O código vale uma vez só: rode cshub agy-login <conta> --link de novo.' + (c.resposta ? ' Resposta do agy: ' + c.resposta : '') };
+}
+
+module.exports = { openWeb, chromeExe, profileDir, cancelLogin, list, status, add, removeAccount, agyCheck, agyLoginLink, agyLoginCode, preparar, getPrefs, setPrefs, loginCli, loginLink, loginCode, loginHelper, ensureProject, configDir, remove, update, refreshEndpoint, tmuxList, open, copyCommand, prepare, sshBase, remoteFor, metrics, stopVm, parseMetrics, sshExec, reservedReason, setLocal, getLocal };

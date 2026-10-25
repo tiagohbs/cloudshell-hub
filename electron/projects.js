@@ -190,7 +190,7 @@ async function add({ name, repo, base, dir, mirror }) {
   repo = (repo || '').trim();
   base = (base || 'main').trim();
   if (!NAME_RE.test(name)) return { ok: false, error: 'Nome: letras, números, ponto, hífen ou sublinhado (até 40)' };
-  if (!REPO_RE.test(repo)) return { ok: false, error: 'Endereço do repositório inválido (use https://github.com/usuario/repo ou git@github.com:usuario/repo.git)' };
+  if (repo ? !REPO_RE.test(repo) : !mirror) return { ok: false, error: 'Endereço do repositório inválido (use https://github.com/usuario/repo ou git@github.com:usuario/repo.git)' };   // sem repositório só vale com a pasta do PC (espelho sem Git)
   if (!BRANCH_RE.test(base)) return { ok: false, error: 'Branch base inválido' };
   const d = cleanDir(dir);
   if (d === null) return { ok: false, error: 'Pasta inválida: use algo como ~/projetos/app (sem espaços, acentos ou "..")' };

@@ -49,6 +49,11 @@ Use quando `cshub contas` vem vazio, quando uma conta aparece `sem-login` ou qua
 3. O `cshub` faz o resto sozinho: guarda o login em `~/.cshub/gcloud/<e-mail>/` (uma pasta por conta, nada se mistura nem toca o gcloud global), cria o projeto GCP **`cshub-<parte do e-mail antes do @>`** com o rótulo `cshub=1` (ou reaproveita o que já tem o rótulo) e cadastra a conta em `~/.cloudshell-accounts.json` com o campo `Project`.
 4. **Conferir:** `cshub contas` deve mostrar a conta `[LIVRE]`. Depois `cshub acordar <conta>`; se a conta nunca abriu o Cloud Shell, peça ao usuário para abrir shell.cloud.google.com com ela uma vez.
 
+**Login do agy na VM (separado do gcloud).** O `agy` de cada VM tem login próprio. `cshub agy-login <conta>` confere (código de saída 9 e "SEM login" se não estiver; gasta cerca de 1% da cota de 5 h). Para logar sem terminal interativo, também em dois passos:
+1. `cshub agy-login <conta> --link --json` devolve o link do Google **inteiro, em uma linha** (nunca copie o link da tela do terminal: as quebras de linha causam "Bad Request 400"). Entregue ao usuário e peça que entre **com a conta daquela VM**.
+2. O usuário cola o código; rode `cshub agy-login <conta> --codigo "<código>" --json`. O `cshub` digita o código na VM e confere o login. O código vale uma vez só; se falhar, volte ao passo 1.
+Se o usuário preferir um terminal de verdade: `cshub ssh <conta> --agy` (no Maestri: `maestri recruit "Login-<conta>" --preset "Shell" --command "cshub ssh <conta> --agy"`; `maestri ask "Login-<conta>" --raw "\n"` escolhe a opção 1, Google OAuth). Não feche o painel antes do prompt normal do agy.
+
 **Preparação do agy (permissão de ferramentas).** No primeiro uso da VM de uma conta (`cshub acordar`, `tarefa`, `preparar`...), o `cshub` grava no `~/.gemini/antigravity-cli/settings.json` da VM `"toolPermission": "always-proceed"` (o agy não pede aprovação a cada ferramenta, necessário para tarefas em segundo plano) e marca como confiáveis a pasta pessoal e `~/espelho` (onde ficam os projetos espelhados). Ele só acrescenta: não sobrescreve um `toolPermission` que a pessoa já escolheu, não toca nas credenciais e recusa um `settings.json` ilegível. **Diga isso ao usuário ao cadastrar uma conta e lembre que ele pode mudar:**
 - `cshub preparar --padrao` mostra o padrão para contas novas; `cshub preparar --padrao <modo>` muda; `cshub preparar --padrao nenhum` faz o `cshub` não mexer no agy.
 - `cshub preparar <conta> --permissao <modo>` muda só uma conta (aceita o valor que o agy aceitar; só `always-proceed` está confirmado). `--confiar <pasta>` marca outra pasta da VM como confiável.
@@ -62,6 +67,12 @@ Cuidados:
 - Não crie projeto à mão nem use `gen-lang-client-…` (do Gemini): o projeto de cada conta é o `cshub-<conta>`.
 - Não use `pkill -f`: a linha de comando do ajudante e do `agy` contém textos que casam com o padrão e você mata o próprio shell.
 - Se o projeto não puder ser criado, o cadastro termina com um `aviso`; relate ao usuário em vez de insistir. O caso mais comum é conta nova que ainda não aceitou os **Termos de Serviço do Google Cloud**: o usuário abre https://console.cloud.google.com com aquela conta, aceita os termos, e você roda `cshub login --importar <e-mail>` para criar o projeto sem novo login. Outras causas: limite de projetos da conta ou política da organização.
+
+## Excluir uma conta
+`cshub remover <conta> --simular` mostra o que seria feito, sem alterar nada: **rode sempre primeiro e mostre ao usuário**. Só rode sem `--simular` com a confirmação dele, para aquela conta. Remover tira a conta do cadastro e apaga o login local (`~/.cshub/gcloud/<e-mail>/`, depois de revogar). **Ficam:** a VM do Cloud Shell, o login do `agy` nela, os resultados em `~/Documents/<projeto>-nuvem` e o projeto GCP `cshub-<conta>`. `--apagar-projeto` também apaga o projeto GCP (o Google guarda 30 dias; só apaga se o projeto tiver o rótulo `cshub=1`, senão recusa sem alterar nada): use só se o usuário pedir esse apagamento. Para voltar a usar a conta, cadastre de novo com `cshub login`.
+
+## Cadastrar um projeto
+`cshub projetos` lista; `cshub projeto adicionar <nome> --pasta-pc <pasta do PC>` cadastra um projeto para o espelho sem Git (`--repo <url>` só para o fluxo com Git do app); `cshub projeto remover <nome>` tira do cadastro sem apagar a pasta do PC, o espelho na VM nem os resultados. Depois: `cshub enviar <projeto> <conta>`.
 
 ## Ciclo padrão (uma tarefa)
 0. **Conferir a conta do PC:** confirme que `cshub local` aponta para a conta que os agentes locais estão usando agora. O e-mail aparece no cabeçalho do `agy` no painel deles (`maestri check "<painel>"`); se não der para ver, pergunte ao usuário. Se mudou, rode `cshub local <e-mail>` antes de qualquer outra coisa.
@@ -175,6 +186,7 @@ O usuário acompanha pelo canvas. Para ver o `agy` trabalhando ao vivo, há tamb
 | Código 6 / "Cota insuficiente" ao disparar | Escolher outra conta com mais cota, ou dividir a tarefa |
 | Código 6 / "A cota do agy esgotou" | `cshub trazer`, depois redisparar o que faltou em outra conta |
 | "Nao consegui ler o /usage" / "o painel /usage nao apareceu" | O `agy` pode estar pedindo login: pedir ao usuário para abrir **agy no espelho** no app uma vez |
+| "O painel /usage não apareceu" ou código 9 com a conta logada no gcloud | O login do **agy** da VM é outro: `cshub agy-login <conta>` para conferir e `--link` / `--codigo` para logar (veja "Cadastrar ou refazer o login de uma conta") |
 | Estado `sem-login` em `cshub contas` | Refazer o login: `cshub login --link`, o usuário abre o link e passa o código, depois `cshub login --codigo` (veja "Cadastrar ou refazer o login de uma conta"). No app: Contas > Adicionar ou Editar |
 | Resposta do `agy` falando de login ou autenticação | Pedir ao usuário para abrir **agy no espelho** no app uma vez nessa conta |
 
