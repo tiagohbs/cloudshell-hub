@@ -64,7 +64,7 @@ Cada conta usa um perfil próprio de Chrome (`%LOCALAPPDATA%\CloudShellHub\chrom
 
 **Login pelo terminal e config isolada por conta.** `cshub login` (ou `cshub login --link` e `--codigo`, para agentes sem terminal interativo) roda `gcloud auth login --no-launch-browser` numa pasta temporária e a move para `~/.cshub/gcloud/<e-mail>/`. Todo comando do `cshub` usa essa pasta como `CLOUDSDK_CONFIG` da conta, então os logins não se misturam nem dependem do gcloud global (contas antigas, sem pasta própria, continuam no global). Cada conta ganha também um projeto GCP `cshub-<parte do e-mail antes do @>`, com o rótulo `cshub=1`, guardado no campo `Project` da conta.
 
-**Preparação do agy.** No primeiro uso da VM de cada conta, o `cshub` grava `"toolPermission": "always-proceed"` e a pasta pessoal em `trustedWorkspaces` no `~/.gemini/antigravity-cli/settings.json` da VM, sem sobrescrever o que já estiver escolhido. O padrão fica em `~/.cshub/preferencias.json` e muda com `cshub preparar --padrao <modo|nenhum>`; para uma conta só, `cshub preparar <conta> --permissao <modo>`.
+**Preparação do agy.** No primeiro uso da VM de cada conta, o `cshub` grava `"toolPermission": "always-proceed"` e a pasta pessoal e `~/espelho` em `trustedWorkspaces` no `~/.gemini/antigravity-cli/settings.json` da VM, sem sobrescrever o que já estiver escolhido. O padrão fica em `~/.cshub/preferencias.json` e muda com `cshub preparar --padrao <modo|nenhum>`; para uma conta só, `cshub preparar <conta> --permissao <modo>`.
 
 ## Códigos de erro
 

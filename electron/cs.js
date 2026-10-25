@@ -457,7 +457,7 @@ async function loginCode({ code, name } = {}) {
 // ("always-proceed" = o agy não pede aprovação a cada ferramenta); null = o cshub não mexe.
 const PREFS = path.join(os.homedir(), '.cshub', 'preferencias.json');
 const PERM_RE = /^[\w-]{1,40}$/;
-const DEFAULT_PREFS = { toolPermission: 'always-proceed' };
+const DEFAULT_PREFS = { toolPermission: 'always-proceed', trustedFolders: ['~/espelho'] };   // trustedFolders: além da pasta pessoal, o que o cshub marca como confiável
 function getPrefs() { return { ...DEFAULT_PREFS, ...(readJson(PREFS) || {}) }; }
 function setPrefs(patch) {
   const next = { ...getPrefs(), ...patch };
@@ -488,7 +488,7 @@ async function prepareAgy(acc, { permissao, confiar = [] } = {}) {
   const force = permissao !== undefined && permissao !== null;
   const mode = force ? permissao : getPrefs().toolPermission;
   if (mode && !PERM_RE.test(mode)) return { ok: false, error: 'Valor de permissão inválido: use letras, números e hífen (ex.: always-proceed)' };
-  const dirs = ['~', ...confiar];
+  const dirs = [...new Set(['~', ...(getPrefs().trustedFolders || []), ...confiar])];
   if (dirs.some((d) => /[\s"'`$&|;<>()\\]/.test(d))) return { ok: false, error: 'Pasta inválida para confiar' };
   const r = await run('ssh', sshBase(acc, ['-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10']).concat([`python3 - ${mode || '-'} ${force ? 1 : 0} ${dirs.join(' ')}`]), { timeout: 60000, input: AGY_MERGE_PY });
   const j = (r.out.trim().split(/\r?\n/).filter(Boolean).pop() || '');
