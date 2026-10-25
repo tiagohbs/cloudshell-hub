@@ -49,6 +49,12 @@ Use quando `cshub contas` vem vazio, quando uma conta aparece `sem-login` ou qua
 3. O `cshub` faz o resto sozinho: guarda o login em `~/.cshub/gcloud/<e-mail>/` (uma pasta por conta, nada se mistura nem toca o gcloud global), cria o projeto GCP **`cshub-<parte do e-mail antes do @>`** com o rótulo `cshub=1` (ou reaproveita o que já tem o rótulo) e cadastra a conta em `~/.cloudshell-accounts.json` com o campo `Project`.
 4. **Conferir:** `cshub contas` deve mostrar a conta `[LIVRE]`. Depois `cshub acordar <conta>`; se a conta nunca abriu o Cloud Shell, peça ao usuário para abrir shell.cloud.google.com com ela uma vez.
 
+**Preparação do agy (permissão de ferramentas).** No primeiro uso da VM de uma conta (`cshub acordar`, `tarefa`, `preparar`...), o `cshub` grava no `~/.gemini/antigravity-cli/settings.json` da VM `"toolPermission": "always-proceed"` (o agy não pede aprovação a cada ferramenta, necessário para tarefas em segundo plano) e marca a pasta pessoal como confiável. Ele só acrescenta: não sobrescreve um `toolPermission` que a pessoa já escolheu, não toca nas credenciais e recusa um `settings.json` ilegível. **Diga isso ao usuário ao cadastrar uma conta e lembre que ele pode mudar:**
+- `cshub preparar --padrao` mostra o padrão para contas novas; `cshub preparar --padrao <modo>` muda; `cshub preparar --padrao nenhum` faz o `cshub` não mexer no agy.
+- `cshub preparar <conta> --permissao <modo>` muda só uma conta (aceita o valor que o agy aceitar; só `always-proceed` está confirmado). `--confiar <pasta>` marca outra pasta da VM como confiável.
+- O modo auto do Shift+Tab é da sessão do agy e não é gravado pelo `cshub`.
+- `always-proceed` equivale, na prática, a aprovar tudo na VM. Como a VM é descartável e só tem o espelho, o padrão é aceitável; se o usuário não quiser, ofereça `--padrao nenhum` ou outro modo.
+
 Variações: `cshub login [<apelido>]` faz tudo de forma interativa num terminal de verdade (link e código no mesmo comando). `cshub login --importar <e-mail>` só cadastra um login que já está guardado em `~/.cshub/gcloud/<e-mail>/`.
 
 Cuidados:

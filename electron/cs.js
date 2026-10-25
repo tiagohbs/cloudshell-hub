@@ -452,6 +452,63 @@ async function loginCode({ code, name } = {}) {
   return a.ok ? registerAccount(a.email, nome) : a;
 }
 
+// ---------- preparação do agy na VM ----------
+// Preferências do cshub para contas novas (~/.cshub/preferencias.json). toolPermission: valor gravado no settings.json do agy
+// ("always-proceed" = o agy não pede aprovação a cada ferramenta); null = o cshub não mexe.
+const PREFS = path.join(os.homedir(), '.cshub', 'preferencias.json');
+const PERM_RE = /^[\w-]{1,40}$/;
+const DEFAULT_PREFS = { toolPermission: 'always-proceed' };
+function getPrefs() { return { ...DEFAULT_PREFS, ...(readJson(PREFS) || {}) }; }
+function setPrefs(patch) {
+  const next = { ...getPrefs(), ...patch };
+  fs.mkdirSync(path.dirname(PREFS), { recursive: true });
+  fs.writeFileSync(PREFS, JSON.stringify(next, null, 2));
+  return next;
+}
+// Mescla no ~/.gemini/antigravity-cli/settings.json da VM, sem tocar nas credenciais nem em outras chaves.
+// Sem forcar, nao sobrescreve um toolPermission que a pessoa ja escolheu; trustedWorkspaces so ganha pastas.
+const AGY_MERGE_PY = `import json,os,sys
+mode,force=sys.argv[1],sys.argv[2]=='1'
+d=os.path.expanduser('~/.gemini/antigravity-cli'); os.makedirs(d,exist_ok=True); f=os.path.join(d,'settings.json')
+s={}
+if os.path.exists(f):
+    try: s=json.load(open(f))
+    except Exception as e: print(json.dumps({'erro':'settings.json do agy ilegivel: '+str(e)})); sys.exit(0)
+ch=[]
+if mode!='-' and s.get('toolPermission')!=mode and (force or 'toolPermission' not in s): s['toolPermission']=mode; ch.append('toolPermission='+mode)
+tw=s.setdefault('trustedWorkspaces',[])
+for p in sys.argv[3:]:
+    p=os.path.expanduser(p)
+    if p not in tw: tw.append(p); ch.append('confiar '+p)
+if ch:
+    open(f+'.tmp','w').write(json.dumps(s,indent=2)); os.replace(f+'.tmp',f)
+print(json.dumps({'mudou':ch,'toolPermission':s.get('toolPermission')}))
+`;
+async function prepareAgy(acc, { permissao, confiar = [] } = {}) {
+  const force = permissao !== undefined && permissao !== null;
+  const mode = force ? permissao : getPrefs().toolPermission;
+  if (mode && !PERM_RE.test(mode)) return { ok: false, error: 'Valor de permissão inválido: use letras, números e hífen (ex.: always-proceed)' };
+  const dirs = ['~', ...confiar];
+  if (dirs.some((d) => /[\s"'`$&|;<>()\\]/.test(d))) return { ok: false, error: 'Pasta inválida para confiar' };
+  const r = await run('ssh', sshBase(acc, ['-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10']).concat([`python3 - ${mode || '-'} ${force ? 1 : 0} ${dirs.join(' ')}`]), { timeout: 60000, input: AGY_MERGE_PY });
+  const j = (r.out.trim().split(/\r?\n/).filter(Boolean).pop() || '');
+  let out;
+  try { out = JSON.parse(j); } catch { return { ok: false, error: 'Não consegui preparar o agy na VM: ' + r.out.trim().slice(-200) }; }
+  if (out.erro) return { ok: false, error: out.erro };
+  return { ok: true, mudou: out.mudou, toolPermission: out.toolPermission };
+}
+// cshub preparar <conta>: acorda a VM e aplica as preferências (ou o que foi pedido) no agy dela
+async function preparar(id, opts = {}) {
+  const p = await prepare(id);
+  if (!p.ok) return p;
+  const a = await prepareAgy(p.acc, opts);
+  if (!a.ok) return a;
+  const l = load();
+  const acc = find(l, id);
+  if (acc) { acc.Agy = { toolPermission: a.toolPermission || null, em: new Date().toISOString() }; save(l); }
+  return { ok: true, conta: p.acc.Name, ...a };
+}
+
 async function remove(id, logout) {
   const l = load();
   const acc = find(l, id);
@@ -516,7 +573,12 @@ async function prepare(id, { refresh = false } = {}) {
       return { ok: false, error: 'O Cloud Shell de ' + acc.Email + ' (' + acc.Host + ') recusou a chave SSH.' + (ep.warn ? '\nRegistro da chave: ' + ep.warn : '') + '\nSe esta conta nunca abriu o Cloud Shell, abra shell.cloud.google.com com ela uma vez e tente de novo.' };
     }
   }
-  return { ok: true, acc };
+  let agy = null;
+  if (!acc.Agy) {   // primeira vez que a VM é usada: aplica as preferências do cshub no agy (sem sobrescrever o que a pessoa já escolheu)
+    const a = await prepareAgy(acc);
+    if (a.ok) { acc.Agy = { toolPermission: a.toolPermission || null, em: new Date().toISOString() }; save(l); agy = a; }
+  }
+  return { ok: true, acc, agy };
 }
 
 async function refreshEndpoint(id) {
@@ -716,4 +778,4 @@ async function sshExec(id, script, { timeout = 180000 } = {}) {
   return { ok: true, code: r.code, out: r.out };
 }
 
-module.exports = { openWeb, chromeExe, profileDir, cancelLogin, list, status, add, loginCli, loginLink, loginCode, loginHelper, ensureProject, configDir, remove, update, refreshEndpoint, tmuxList, open, copyCommand, prepare, sshBase, remoteFor, metrics, stopVm, parseMetrics, sshExec, reservedReason, setLocal, getLocal };
+module.exports = { openWeb, chromeExe, profileDir, cancelLogin, list, status, add, preparar, getPrefs, setPrefs, loginCli, loginLink, loginCode, loginHelper, ensureProject, configDir, remove, update, refreshEndpoint, tmuxList, open, copyCommand, prepare, sshBase, remoteFor, metrics, stopVm, parseMetrics, sshExec, reservedReason, setLocal, getLocal };

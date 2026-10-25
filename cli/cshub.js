@@ -18,6 +18,10 @@ CONTAS
         [--importar <e-mail>]        cria o projeto GCP cshub-<conta> (rótulo cshub=1) e cadastra a conta. --importar: só cadastra um login já guardado
   cshub login --link                 sem terminal interativo (agentes), passo 1: mostra o link de login do Google e deixa um ajudante esperando o código
   cshub login --codigo <código> [<apelido>]   passo 2: entrega o código, guarda a config isolada, cria o projeto e cadastra a conta
+  cshub preparar <conta>             acorda a VM e aplica no agy dela as preferências do cshub (hoje: toolPermission=always-proceed; não sobrescreve o que você já escolheu)
+        [--permissao <modo>]         força outro valor de toolPermission nesta conta (ex.: o que o agy aceitar no lugar de always-proceed)
+        [--confiar <pasta>]          marca uma pasta da VM como confiável (trustedWorkspaces)
+  cshub preparar --padrao [<modo>|nenhum]   mostra ou muda o padrão para contas novas ("nenhum": o cshub não mexe no agy)
   cshub acordar <conta>              liga a VM (se suspensa) e confirma o acesso
   cshub local [<conta|e-mail>]       marca a conta em uso no PC (a do agy local do orquestrador); ela fica reservada e a anterior e liberada
         [--nenhuma]                  nenhuma conta em uso no PC
@@ -89,7 +93,7 @@ const ORIENTA = {
 };
 
 // ---------- argumentos ----------
-const WITH_VALUE = new Set(['--importar', '--codigo', '--comando', '--travado-min', '--max-min', '--conta', '--espelho', '--arquivo', '--texto', '--minutos', '--modelo', '--esforco', '--cota-minima', '--vigiar-cota', '--anexo']);
+const WITH_VALUE = new Set(['--permissao', '--confiar', '--importar', '--codigo', '--comando', '--travado-min', '--max-min', '--conta', '--espelho', '--arquivo', '--texto', '--minutos', '--modelo', '--esforco', '--cota-minima', '--vigiar-cota', '--anexo']);
 const argv = process.argv.slice(2);
 const opt = {};
 const flags = new Set();
@@ -238,6 +242,20 @@ function localAgyHealth() {
       print({ ok: true, conta: a1, reservada: cmd === 'reservar' ? a2 : null }, cmd === 'reservar' ? `${a1} reservada: ${a2}` : `${a1} liberada.`);
       break;
     }
+    case 'preparar': {
+      if (flags.has('--padrao')) {
+        const v = a1 ? (a1 === 'nenhum' ? null : a1) : undefined;
+        if (v && !/^[\w-]{1,40}$/.test(v)) fail('valor inválido: use letras, números e hífen (ex.: always-proceed)');
+        const pr = v === undefined ? cs.getPrefs() : cs.setPrefs({ toolPermission: v });
+        print(pr, `Padrão para contas novas: toolPermission = ${pr.toolPermission || '(o cshub não mexe no agy)'}\nMudar: cshub preparar --padrao <modo|nenhum>. Em uma conta só: cshub preparar <conta> --permissao <modo>.`);
+        break;
+      }
+      need(a1);
+      const r = await cs.preparar(a1, { permissao: opt.permissao, confiar: opt.confiar ? [opt.confiar] : [] });
+      if (!r.ok) fail(r.error, r);
+      print(r, `${r.conta}: toolPermission = ${r.toolPermission || '(não definido)'}${r.mudou.length ? '\n  alterado: ' + r.mudou.join(', ') : '\n  nada a alterar (já estava assim)'}`);
+      break;
+    }
     case '_login-ajudante':   // uso interno de login --link
       await cs.loginHelper();
       return;
@@ -250,7 +268,9 @@ function localAgyHealth() {
       }
       const r = opt.codigo ? await cs.loginCode({ code: opt.codigo, name: a1 }) : await cs.loginCli({ name: a1, importar: opt.importar });
       if (!r.ok) fail(r.error, r);
-      print(r,`${r.conta} <${r.email}> cadastrada.\n  config do gcloud: ${r.config}\n  projeto GCP:      ${r.project ? r.project + (r.projetoCriado ? ' (criado agora)' : '') : '(não definido) ' + r.aviso}`);
+      const pm = cs.getPrefs().toolPermission;
+      r.agyPermissao = pm || null;
+      print(r, `${r.conta} <${r.email}> cadastrada.\n  config do gcloud: ${r.config}\n  projeto GCP:      ${r.project ? r.project + (r.projetoCriado ? ' (criado agora)' : '') : '(não definido) ' + r.aviso}\n  agy: no primeiro uso da VM o cshub grava toolPermission=${pm || '(nada)'} no agy desta conta (sem sobrescrever o que você já escolheu).\n       Mudar o padrão: cshub preparar --padrao <modo|nenhum>   Só esta conta: cshub preparar ${r.conta} --permissao <modo>`);
       break;
     }
     case 'acordar': {
@@ -258,7 +278,8 @@ function localAgyHealth() {
       log('Acordando a VM (pode levar até 90 s)…');
       const r = await cs.prepare(a1);
       if (!r.ok) fail(r.error);
-      print({ ok: true, conta: r.acc.Name, endereco: `${r.acc.Host}:${r.acc.Port}` }, `${r.acc.Name}: VM ativa em ${r.acc.Host}:${r.acc.Port}`);
+      const ag = r.agy && r.agy.mudou && r.agy.mudou.length ? `\n  agy preparado: ${r.agy.mudou.join(', ')} (para mudar: cshub preparar ${r.acc.Name} --permissao <modo>)` : '';
+      print({ ok: true, conta: r.acc.Name, endereco: `${r.acc.Host}:${r.acc.Port}`, agy: r.agy || undefined }, `${r.acc.Name}: VM ativa em ${r.acc.Host}:${r.acc.Port}${ag}`);
       break;
     }
     case 'ssh': {
