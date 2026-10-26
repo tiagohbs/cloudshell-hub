@@ -31,6 +31,18 @@ cshub ajuda
 
 Primeiros passos: `cshub login` (ou `cshub login --link` e `--codigo` para quem não tem terminal interativo), `cshub agy-login <conta>`, `cshub contas`. Com agentes de IA, instale a skill: `cshub skill instalar`. O fluxo completo está em `skill/cloudshell-hub/SKILL.md`.
 
+### Android (Termux)
+
+Um script instala tudo o que é automático: Ubuntu dentro do Termux (`proot-distro`), Node, `gcloud`, o `cshub` (com `npm test` e a skill) e, se pedir, Claude Code (`--claude`), Colab CLI (`--colab`) e mais um repositório seu (`--repo dono/nome`, depois de `gh auth login`). Use o Termux do F-Droid e deixe a bateria dele "sem restrições".
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/tiagohbs/cloudshell-hub/main/scripts/instalar-android.sh -o instalar-android.sh
+bash instalar-android.sh --simular     # mostra o que faria
+bash instalar-android.sh               # instala (pode rodar de novo: pula o que já existe)
+```
+
+Os logins ficam com você, no navegador: `cshub login` (uma vez por conta) e `cshub agy-login --todas`. O script termina com um resumo e a lista desses comandos.
+
 ## Rodar
 
 ```powershell
