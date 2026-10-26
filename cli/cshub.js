@@ -358,7 +358,7 @@ function localAgyHealth() {
       if (flags.has('--link')) {
         const r = await cs.loginLink();
         if (!r.ok) fail(r.error, r);
-        print(r, `Abra este link e entre com a conta:\n\n${r.link}\n\nDepois rode: cshub login --codigo <código> [apelido]`);
+        print(r, `Abra este link e entre com a conta:\n\n${r.link}\n\nDepois rode: cshub login --codigo <código> [apelido]\n(o e-mail e o apelido da conta só aparecem depois do código; sem apelido, vale a parte do e-mail antes do @)`);
         break;
       }
       const r = opt.codigo ? await cs.loginCode({ code: opt.codigo, name: a1 }) : await cs.loginCli({ name: a1, importar: opt.importar });

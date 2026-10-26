@@ -432,7 +432,7 @@ async function loginLink() {
   for (let i = 0; i < 80; i++) {          // até ~40 s
     await sleep(500);
     const link = fs.existsSync(path.join(PENDING, 'link.txt')) && fs.readFileSync(path.join(PENDING, 'link.txt'), 'utf8').trim();
-    if (link) return { ok: true, link, proximo: 'Abra o link, entre com a conta e rode: cshub login --codigo <código> [apelido]' };
+    if (link) return { ok: true, link, proximo: 'Abra o link, entre com a conta e rode: cshub login --codigo "<código>" [apelido] --json (o e-mail e o apelido da conta só aparecem depois do código)' };
     if (fs.existsSync(path.join(PENDING, 'fim.json'))) break;
   }
   const fim = readJson(path.join(PENDING, 'fim.json'));
