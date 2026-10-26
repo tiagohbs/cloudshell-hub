@@ -420,7 +420,8 @@ async function accountsOverview() {
     const qr = quota.remaining(qc);
     row.cota = qc ? { gemini: qr ? { semanal: qr.semanal, cincoHoras: qr.cincoHoras, minimo: qr.minimo } : null, medidaHaMin: qc.idadeMin, esgotadaAte: qc.esgotada ? qc.esgotada.ate : null } : null;
     if (st.state === 'RUNNING' && a.Host) {
-      const r = await remote(a, 'ls "$HOME/.cshub/rodando" 2>/dev/null | wc -l', { timeout: 20000 });
+      // marcador anterior ao boot da VM é de tarefa que morreu com ela: não conta
+      const r = await remote(a, 'b=$(( $(date +%s) - $(cut -d. -f1 /proc/uptime) )); find "$HOME/.cshub/rodando" -type f -newermt "@$b" 2>/dev/null | wc -l', { timeout: 20000 });
       if (r.code === 0) row.rodando = parseInt(r.out.toString(), 10) || 0;
     }
     row.bloqueio = blockers(a, st, qc, qr);

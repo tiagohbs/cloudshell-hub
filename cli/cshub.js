@@ -22,6 +22,8 @@ CONTAS
         [--permissao <modo>]         força outro valor de toolPermission nesta conta (ex.: o que o agy aceitar no lugar de always-proceed)
         [--confiar <pasta>]          marca uma pasta da VM como confiável (trustedWorkspaces)
   cshub preparar --padrao [<modo>|nenhum]   mostra ou muda o padrão para contas novas ("nenhum": o cshub não mexe no agy)
+        [--confiar <a,b>]            com --padrao, troca as pastas da VM que o cshub marca como confiáveis em contas novas (padrão: ~/espelho; a pasta pessoal sempre entra)
+  cshub agy-login --todas            confere o login do agy em todas as contas cadastradas (acorda as VMs; gasta cerca de 1% da cota de 5 h de cada uma)
   cshub agy-login <conta>            confere se o agy da VM está logado (--verificar, padrão). O login do agy é separado do gcloud
         [--link]                     passo 1, sem terminal interativo: mostra o link inteiro (sem quebras) do login do agy
         [--codigo <código>]          passo 2: digita o código na VM e confere o login
@@ -254,8 +256,11 @@ function localAgyHealth() {
       if (flags.has('--padrao')) {
         const v = a1 ? (a1 === 'nenhum' ? null : a1) : undefined;
         if (v && !/^[\w-]{1,40}$/.test(v)) fail('valor inválido: use letras, números e hífen (ex.: always-proceed)');
-        const pr = v === undefined ? cs.getPrefs() : cs.setPrefs({ toolPermission: v });
-        print(pr, `Padrão para contas novas: toolPermission = ${pr.toolPermission || '(o cshub não mexe no agy)'}\nMudar: cshub preparar --padrao <modo|nenhum>. Em uma conta só: cshub preparar <conta> --permissao <modo>.`);
+        const pastas = opt.confiar ? opt.confiar.split(',').map((x) => x.trim()).filter(Boolean) : null;
+        if (pastas && pastas.some((d) => /[\s"'`$&|;<>()\\]/.test(d))) fail('pasta inválida em --confiar (sem espaços nem aspas)');
+        const patch = { ...(v !== undefined ? { toolPermission: v } : {}), ...(pastas ? { trustedFolders: pastas } : {}) };
+        const pr = Object.keys(patch).length ? cs.setPrefs(patch) : cs.getPrefs();
+        print(pr, `Padrão para contas novas: toolPermission = ${pr.toolPermission || '(o cshub não mexe no agy)'}; pastas confiáveis: ~, ${(pr.trustedFolders || []).join(', ') || '(nenhuma além da pessoal)'}\nMudar: cshub preparar --padrao <modo|nenhum>. Em uma conta só: cshub preparar <conta> --permissao <modo>.`);
         break;
       }
       need(a1);
@@ -265,6 +270,13 @@ function localAgyHealth() {
       break;
     }
     case 'agy-login': {
+      if (flags.has('--todas')) {
+        const rows = [];
+        for (const c of await cs.list()) { const r = await cs.agyCheck(c.Name); rows.push({ conta: c.Name, logado: !!(r.ok && r.logado), ...(r.ok ? {} : { erro: r.error }) }); }
+        print(rows, rows.map((x) => `${x.logado ? 'logado   ' : 'SEM LOGIN'}  ${x.conta}${x.erro ? '  (' + x.erro + ')' : ''}`).join('\n') || 'Nenhuma conta cadastrada.');
+        if (rows.some((x) => !x.logado)) quit(9);
+        break;
+      }
       need(a1);
       if (flags.has('--link')) {
         const r = await cs.agyLoginLink(a1);

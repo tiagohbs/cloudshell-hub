@@ -49,19 +49,21 @@ Use quando `cshub contas` vem vazio, quando uma conta aparece `sem-login` ou qua
 3. O `cshub` faz o resto sozinho: guarda o login em `~/.cshub/gcloud/<e-mail>/` (uma pasta por conta, nada se mistura nem toca o gcloud global), cria o projeto GCP **`cshub-<parte do e-mail antes do @>`** com o rótulo `cshub=1` (ou reaproveita o que já tem o rótulo) e cadastra a conta em `~/.cloudshell-accounts.json` com o campo `Project`.
 4. **Conferir:** `cshub contas` deve mostrar a conta `[LIVRE]`. Depois `cshub acordar <conta>`; se a conta nunca abriu o Cloud Shell, peça ao usuário para abrir shell.cloud.google.com com ela uma vez.
 
-**Login do agy na VM (separado do gcloud).** O `agy` de cada VM tem login próprio. `cshub agy-login <conta>` confere (código de saída 9 e "SEM login" se não estiver; gasta cerca de 1% da cota de 5 h). Para logar sem terminal interativo, também em dois passos:
+**Login do agy na VM (separado do gcloud).** O `agy` de cada VM tem login próprio. `cshub agy-login <conta>` confere (código de saída 9 e "SEM login" se não estiver; gasta cerca de 1% da cota de 5 h). `cshub agy-login --todas` confere todas as contas (acorda as VMs e gasta cerca de 1% de cada uma; saída 9 se alguma estiver sem login). Para logar sem terminal interativo, também em dois passos:
 1. `cshub agy-login <conta> --link --json` devolve o link do Google **inteiro, em uma linha** (nunca copie o link da tela do terminal: as quebras de linha causam "Bad Request 400"). Entregue ao usuário e peça que entre **com a conta daquela VM**.
 2. O usuário cola o código; rode `cshub agy-login <conta> --codigo "<código>" --json`. O `cshub` digita o código na VM e confere o login. O código vale uma vez só; se falhar, volte ao passo 1.
 Se o usuário preferir um terminal de verdade: `cshub ssh <conta> --agy` (no Maestri: `maestri recruit "Login-<conta>" --preset "Shell" --command "cshub ssh <conta> --agy"`; `maestri ask "Login-<conta>" --raw "\n"` escolhe a opção 1, Google OAuth). Não feche o painel antes do prompt normal do agy.
 
 **Preparação do agy (permissão de ferramentas).** No primeiro uso da VM de uma conta (`cshub acordar`, `tarefa`, `preparar`...), o `cshub` grava no `~/.gemini/antigravity-cli/settings.json` da VM `"toolPermission": "always-proceed"` (o agy não pede aprovação a cada ferramenta, necessário para tarefas em segundo plano) e marca como confiáveis a pasta pessoal e `~/espelho` (onde ficam os projetos espelhados). Ele só acrescenta: não sobrescreve um `toolPermission` que a pessoa já escolheu, não toca nas credenciais e recusa um `settings.json` ilegível. **Diga isso ao usuário ao cadastrar uma conta e lembre que ele pode mudar:**
 - `cshub preparar --padrao` mostra o padrão para contas novas; `cshub preparar --padrao <modo>` muda; `cshub preparar --padrao nenhum` faz o `cshub` não mexer no agy.
+- `cshub preparar --padrao --confiar ~/espelho,~/outra` troca as pastas da VM que o `cshub` marca como confiáveis em contas novas (a pasta pessoal sempre entra).
 - `cshub preparar <conta> --permissao <modo>` muda só uma conta (aceita o valor que o agy aceitar; só `always-proceed` está confirmado). `--confiar <pasta>` marca outra pasta da VM como confiável.
 - O modo auto do Shift+Tab é da sessão do agy e não é gravado pelo `cshub`.
 - `always-proceed` equivale, na prática, a aprovar tudo na VM. Como a VM é descartável e só tem o espelho, o padrão é aceitável; se o usuário não quiser, ofereça `--padrao nenhum` ou outro modo.
 
 Variações: `cshub login [<apelido>]` faz tudo de forma interativa num terminal de verdade (link e código no mesmo comando). `cshub login --importar <e-mail>` só cadastra um login que já está guardado em `~/.cshub/gcloud/<e-mail>/`.
 
+- Instalação do próprio `cshub` (para uma IA que precisa instalá-lo): Node 20+, `gcloud` e `ssh`; `npm install --omit=dev` na pasta do repositório (sem isso o CLI não abre) e um link do `cshub` (Linux/macOS) ou a pasta no PATH (`cshub.cmd`, Windows). Detalhes no README, seção "Só o CLI".
 Cuidados:
 - Nunca copie, espelhe, comite nem cole em tarefa nada de `~/.cshub/gcloud/` ou o código de verificação: a pasta dá acesso à conta. Não aponte `cshub pasta-pc` para a pasta pessoal.
 - Não crie projeto à mão nem use `gen-lang-client-…` (do Gemini): o projeto de cada conta é o `cshub-<conta>`.

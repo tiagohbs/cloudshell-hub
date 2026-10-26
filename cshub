@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# Cloud Shell Hub (CLI) para Linux e macOS. Uso: ponha esta pasta no PATH ou crie um link:
+#   ln -s "$PWD/cshub" ~/.local/bin/cshub
+# No Windows use o cshub.cmd.
+SRC="${BASH_SOURCE[0]}"
+while [ -h "$SRC" ]; do
+  D="$(cd -P "$(dirname "$SRC")" && pwd)"
+  SRC="$(readlink "$SRC")"
+  case "$SRC" in /*) ;; *) SRC="$D/$SRC" ;; esac
+done
+DIR="$(cd -P "$(dirname "$SRC")" && pwd)"
+
+if ! command -v node >/dev/null 2>&1; then   # tenta o nvm antes de desistir
+  export NVM_DIR="${NVM_DIR:-$HOME/.config/nvm}"
+  [ -s "$NVM_DIR/nvm.sh" ] || NVM_DIR="$HOME/.nvm"
+  [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh" >/dev/null 2>&1
+fi
+command -v node >/dev/null 2>&1 || { echo "cshub: Node.js 20 ou mais novo não encontrado. Instale em https://nodejs.org" >&2; exit 1; }
+[ "$(node -p 'process.versions.node.split(".")[0]')" -ge 20 ] || { echo "cshub: precisa do Node.js 20 ou mais novo (achei $(node -v))." >&2; exit 1; }
+[ -d "$DIR/node_modules/tar" ] || { echo "cshub: faltam as dependências. Rode: (cd \"$DIR\" && npm install --omit=dev)" >&2; exit 1; }
+exec node "$DIR/cli/cshub.js" "$@"

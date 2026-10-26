@@ -17,6 +17,20 @@ App desktop (Electron + React) e linha de comando (`cshub`) para usar **várias 
 
 Windows 10/11, Node 20+, `gcloud` (Google Cloud CLI), `ssh.exe` (Cliente OpenSSH) e Chrome (para o login das contas).
 
+## Só o CLI (`cshub`), sem o app
+
+Funciona em Windows, Linux e macOS e é o que um agente de IA usa. Precisa de Node 20+, `gcloud` e `ssh`/`ssh-keygen` (cliente OpenSSH). O Chrome não é necessário: o login mostra um link para abrir em qualquer navegador.
+
+```bash
+git clone https://github.com/tiagohbs/cloudshell-hub.git
+cd cloudshell-hub
+npm install --omit=dev        # só as dependências do CLI (poucos segundos; não baixa o Electron)
+ln -s "$PWD/cshub" ~/.local/bin/cshub   # Linux/macOS; no Windows ponha esta pasta no PATH (cshub.cmd)
+cshub ajuda
+```
+
+Primeiros passos: `cshub login` (ou `cshub login --link` e `--codigo` para quem não tem terminal interativo), `cshub agy-login <conta>`, `cshub contas`. Com agentes de IA, instale a skill: `cshub skill instalar`. O fluxo completo está em `skill/cloudshell-hub/SKILL.md`.
+
 ## Rodar
 
 ```powershell
