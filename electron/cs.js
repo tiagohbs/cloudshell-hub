@@ -898,7 +898,7 @@ async function zerar({ skill = false, vms = false, projetosGcp = false, conta = 
       const info = parseInspect(r.out);
       Object.assign(it, info);
       if (info.rodando && !forcar) { it.bloqueado = `${info.rodando} tarefa(s) rodando (cancele com cshub cancelar ou use --forcar)`; continue; }
-      if (info.espelhos.some((e) => e.saidaKb > 0)) it.avisos.push('há resultados (.saida) no espelho: rode cshub trazer antes, senão se perdem');
+      if (info.espelhos.some((e) => e.saidaKb > 0)) it.avisos.push('há resultados (.saida) no espelho: confirme que já voltaram ao PC (rode cshub trazer e confira o RESUMO.md na pasta de resultados); este aviso só olha a VM e continua aparecendo depois do trazer; sem a cópia no PC, se perdem');
       if (confirmar) {
         const w = await sshExec(acc.Name, VM_WIPE_SH, { timeout: 180000 });
         if (!w.ok || !/@@LIMPO/.test(w.out)) { it.pula = 'não consegui limpar a VM: ' + (w.error || w.out.trim().slice(-160)); continue; }
