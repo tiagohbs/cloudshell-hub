@@ -2,20 +2,24 @@
 
 App desktop (Electron + React) e linha de comando (`cshub`) para usar **várias contas do Google Cloud Shell** e **delegar tarefas** a agentes (`agy`/Gemini) que rodam nas VMs, enquanto um orquestrador (você, o Claude, o Maestri…) acompanha e confere o resultado.
 
-> **English summary:** Windows desktop launcher + CLI (`cshub`) that manages many Google Cloud Shell accounts, mirrors a local project to each VM (no Git needed), runs `agy` tasks there with a watchdog (stall/timeout/quota/login detection), and brings the results back. Docs are in Portuguese. MIT license with a credit notice.
+> **English summary:** Windows desktop launcher + cross-platform CLI (`cshub`: Windows, Linux, macOS, Android/Termux) that manages many Google Cloud Shell accounts (isolated gcloud login per account, one `cshub-<account>` GCP project each), mirrors a local project to each VM (no Git needed), runs `agy` tasks there with a watchdog (stall/timeout/quota/login detection), brings the results back, and can reset everything it set up (`cshub zerar`). Docs are in Portuguese. MIT license with a credit notice.
 
 ## O que faz
 
-- **Contas**: cadastro (inclusive em lote), login no gcloud com um perfil de Chrome por conta, cota do Gemini, estado da VM.
+- **Contas**: cadastro pelo app ou pelo terminal (`cshub login`, com link e código; funciona até para agentes sem terminal interativo). Cada conta tem o próprio login do gcloud (`~/.cshub/gcloud/<e-mail>/`, nada se mistura) e o próprio projeto GCP `cshub-<conta>`. Login do `agy` da VM (`cshub agy-login`), cota do Gemini e estado da VM.
+- **Preparação do agy**: no primeiro uso de cada VM o `cshub` grava `toolPermission: always-proceed` e marca `~` e `~/espelho` como confiáveis, sem sobrescrever o que você já escolheu (`cshub preparar` muda o padrão).
 - **Terminais**: terminal embutido (xterm + node-pty), lado a lado, ou janela externa.
 - **Projetos e espelho**: copia só o que mudou do PC para a VM, sem Git; segredos ficam de fora; resultados voltam para uma pasta separada.
 - **Tarefas**: `cshub tarefa` dispara o agente na VM com um vigia (travou, estourou o tempo, acabou a cota, caiu o login, falha de rede) e exige um `RESUMO.md` nas tarefas que editam arquivos.
-- **Skill para orquestradores**: `skill/cloudshell-hub/SKILL.md` ensina outro agente a usar tudo isso (botão **Instalar skill** no app).
+- **Limpeza**: `cshub remover` (uma conta) e `cshub zerar` (skill, espelhos das VMs, projetos GCP), sempre simulando antes de apagar.
+- **Skill para orquestradores**: `skill/cloudshell-hub/SKILL.md` ensina outro agente a usar tudo isso (botão **Instalar skill** no app ou `cshub skill instalar`). Testada com um modelo pequeno seguindo só a skill: cadastro de conta, delegação e limpeza.
 - **Avisos**: o app notifica no Windows quando uma tarefa termina, falha ou a VM some.
 
 ## Requisitos
 
-Windows 10/11, Node 20+, `gcloud` (Google Cloud CLI), `ssh.exe` (Cliente OpenSSH) e Chrome (para o login das contas).
+- **App**: Windows 10/11, Node 20+, `gcloud` (Google Cloud CLI), `ssh.exe` (Cliente OpenSSH) e Chrome (login das contas pelo app).
+- **Só o CLI**: Windows, Linux, macOS ou Android (Termux), com Node 20+, `gcloud` e `ssh`. Veja abaixo.
+- **Cada conta Google, uma vez, no navegador**: aceite os Termos de Serviço em https://console.cloud.google.com e abra https://shell.cloud.google.com até o terminal carregar. Sem isso o projeto da conta não é criado e a VM não liga.
 
 ## Só o CLI (`cshub`), sem o app
 
@@ -24,12 +28,21 @@ Funciona em Windows, Linux e macOS e é o que um agente de IA usa. Precisa de No
 ```bash
 git clone https://github.com/tiagohbs/cloudshell-hub.git
 cd cloudshell-hub
-npm install --omit=dev        # só as dependências do CLI (poucos segundos; não baixa o Electron)
+npm ci --omit=dev             # só as dependências do CLI (poucos segundos; não baixa o Electron)
 ln -s "$PWD/cshub" ~/.local/bin/cshub   # Linux/macOS; no Windows ponha esta pasta no PATH (cshub.cmd)
 cshub ajuda
 ```
 
-Primeiros passos: `cshub login` (ou `cshub login --link` e `--codigo` para quem não tem terminal interativo), `cshub agy-login <conta>`, `cshub contas`. Com agentes de IA, instale a skill: `cshub skill instalar`. O fluxo completo está em `skill/cloudshell-hub/SKILL.md`.
+Primeiros passos:
+
+```bash
+cshub login                      # uma vez por conta (ou --link e --codigo, para agentes sem terminal interativo)
+cshub contas                     # cada conta deve aparecer [LIVRE]
+cshub agy-login --todas          # confere o login do agy de cada VM (gasta ~1% da cota de 5 h de cada uma)
+cshub skill instalar             # para agentes de IA (Claude etc.)
+```
+
+Agentes que chamam o `cshub` devem gravar a saída em arquivo (`--json > arquivo`), **não** passar por `| tail`: um processo que demora segura o pipe e trava o terminal do agente. O fluxo completo está em `skill/cloudshell-hub/SKILL.md`.
 
 ### Android (Termux)
 
@@ -41,7 +54,7 @@ bash instalar-android.sh --simular     # mostra o que faria
 bash instalar-android.sh               # instala (pode rodar de novo: pula o que já existe)
 ```
 
-Os logins ficam com você, no navegador: `cshub login` (uma vez por conta) e `cshub agy-login --todas`. O script termina com um resumo e a lista desses comandos.
+A primeira instalação leva ~30 a 45 min (o `gcloud` sozinho, ~13 min) e só acontece uma vez: o script avisa a cada minuto que continua trabalhando e, rodado de novo, pula o que já existe. Os logins ficam com você, no navegador: `cshub login` (uma vez por conta) e `cshub agy-login --todas`. O script termina com um resumo e a lista desses comandos.
 
 ## Rodar
 
@@ -79,16 +92,24 @@ Se você só quer **usar** o app, o mais fácil é baixar o `.exe` portátil na 
 
 ## Uso rápido
 
-1. Aba **Contas** > **Adicionar contas** (uma por linha) e faça o login de cada uma.
-2. Abra o Cloud Shell de cada conta uma vez pelo link do app e conclua a validação manual do Google.
-3. Aba **Projetos**: cadastre a pasta do projeto no PC.
-4. Dispare uma tarefa:
+1. Cadastre as contas: aba **Contas** > **Adicionar contas** no app, ou `cshub login` no terminal (uma vez por conta).
+2. Cadastre o projeto: aba **Projetos**, ou `cshub projeto adicionar <nome> --pasta-pc <pasta> [--excluir target,.cache]` (confira o tamanho da pasta: pastas de build grandes devem ir no `--excluir`).
+3. Delegue uma tarefa:
 
-```powershell
-cshub tarefa <projeto> <conta> "o que o agente deve fazer"
-cshub esperar <projeto> <conta>
-cshub trazer <projeto> <conta>
-cshub aplicar <projeto> <conta>
+```bash
+cshub escolher --json                                   # melhor conta livre
+cshub enviar <projeto> <conta>                          # espelho do PC para a VM (só o que mudou)
+cshub tarefa <projeto> <conta> --arquivo tarefa.md --leitura --cota-minima 10 --json   # devolve o ID
+cshub esperar <projeto> <conta> <ID> --trazer --minutos 15
+cshub aplicar <ID> <pasta-do-projeto> --simular         # confere antes de aplicar o que a nuvem editou
+```
+
+4. Limpe quando quiser (sempre simula antes; só apaga com `--confirmar`):
+
+```bash
+cshub zerar --vms --skill                # mostra o que apagaria
+cshub zerar --vms --skill --confirmar    # apaga espelhos e ~/.cshub das VMs e a skill (contas e logins ficam)
+cshub remover <conta> --simular          # tirar uma conta (o projeto GCP só com --apagar-projeto)
 ```
 
 Todos os comandos: [docs/CSHUB.md](docs/CSHUB.md) (ou `cshub ajuda`).
@@ -105,6 +126,8 @@ Todos os comandos: [docs/CSHUB.md](docs/CSHUB.md) (ou `cshub ajuda`).
 
 `docs/CODIGOS-DE-ERRO.md` e `docs/CSHUB.md` são gerados: rode `npm run docs` depois de mudar `electron/errors.js` ou a ajuda do `cshub`.
 
+**Testes:** `npm test` (suíte em `test/`, sem rede e sem contas: HOME temporária e `gcloud` falso). Cobre as travas de apagar (prefixo e rótulo dos projetos, simulação), a mesclagem do `settings.json` do agy, o encerramento de processos no estouro de prazo e se os docs gerados estão em dia. Antes de publicar: `npm run auditar`.
+
 ## Aviso importante
 
 Usar várias contas para somar cotas gratuitas pode violar os termos do Google Cloud Shell, do Gemini ou do Antigravity. O projeto é uma ferramenta de organização; **o uso e o risco são seus**. Leia os termos dos serviços antes de usar.
@@ -112,7 +135,8 @@ Usar várias contas para somar cotas gratuitas pode violar os termos do Google C
 ## Privacidade e segurança
 
 - Nada é enviado a servidores do autor. O app fala só com o Google (gcloud/Cloud Shell) e com suas VMs.
-- Contas e projetos ficam em arquivos na sua pasta de usuário; o app não guarda senhas nem tokens próprios.
+- Contas e projetos ficam em arquivos na sua pasta de usuário. O app não guarda senhas próprias; os **logins do gcloud de cada conta** (gerados pelo próprio gcloud) ficam em `~/.cshub/gcloud/<e-mail>/`, com acesso só seu. Trate essa pasta como senha: nunca copie, espelhe nem comite.
+- O padrão `always-proceed` faz o `agy` da VM executar ferramentas sem pedir aprovação. A VM só tem o espelho, mas tem as credenciais do gcloud daquela conta: se preferir, troque com `cshub preparar --padrao <modo>` ou `--padrao nenhum`.
 - Segredos (`.env`, `*.pem`, chaves…) não vão no espelho, salvo se você mandar com **Com segredos…**.
 
 ## Agradecimentos
