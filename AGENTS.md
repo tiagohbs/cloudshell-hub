@@ -78,7 +78,7 @@ npm run dist       # gera release\Cloud Shell Hub 0.1.0.exe (portátil)
 ## Fluxo de trabalho esperado
 - O mantenedor conversa em português (PT-BR). Seja direto; explique o resultado, não o passo a passo.
 - Depois de grandes alterações, rode `graphify update` (se o mantenedor usa) e use o graphify para navegar no projeto quando ajudar.
-- Valide o que puder sem executar o Electron (`node --check`, esbuild) e **diga claramente o que não foi testado**; o mantenedor testa com `npm start`.
+- Valide o que puder sem executar o Electron: `npm test` (suíte em `test/`, sem rede nem contas: HOME temporária e `gcloud` falso), `node --check`, esbuild. Mudou a ajuda do `cshub` ou `electron/errors.js`? Rode `npm run docs` (o teste falha se `docs/CSHUB.md` ficar desatualizado). **Diga claramente o que não foi testado**; o mantenedor testa com `npm start`.
 - Não faça commit/push sem o mantenedor pedir. Repositório: https://github.com/tiagohbs/cloudshell-hub (branch `main`). Antes de publicar, rode `npm run auditar`.
 - Se mudar o comportamento do `cshub`, atualize também `skill/cloudshell-hub/SKILL.md` (e reinstale a skill) e `docs/EXEMPLO-REGRAS-DO-PROJETO.md` (modelo das regras de projeto que o orquestrador lê).
 - Se mudar uma tela, atualize os passos em `src/Help.jsx` e este arquivo quando a estrutura mudar.

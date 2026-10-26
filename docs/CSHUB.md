@@ -7,6 +7,25 @@ cshub — Cloud Shell Hub pela linha de comando
 
 CONTAS
   cshub contas                       contas: [LIVRE] ou [BLOQUEADA: motivo] (em-uso-no-pc, reserva-manual, sem-cota-gemini, sem-horas-vm, sem-login), VM, horas 7d
+  cshub login [<apelido>]            loga uma conta pelo terminal (link + código), guarda a config isolada em ~/.cshub/gcloud/<e-mail>,
+        [--importar <e-mail>]        cria o projeto GCP cshub-<conta> (rótulo cshub=1) e cadastra a conta. --importar: só cadastra um login já guardado
+  cshub login --link                 sem terminal interativo (agentes), passo 1: mostra o link de login do Google e deixa um ajudante esperando o código
+  cshub login --codigo <código> [<apelido>]   passo 2: entrega o código, guarda a config isolada, cria o projeto e cadastra a conta
+  cshub preparar <conta>             acorda a VM e aplica no agy dela as preferências do cshub (hoje: toolPermission=always-proceed; não sobrescreve o que você já escolheu)
+        [--permissao <modo>]         força outro valor de toolPermission nesta conta (ex.: o que o agy aceitar no lugar de always-proceed)
+        [--confiar <pasta>]          marca uma pasta da VM como confiável (trustedWorkspaces)
+  cshub preparar --padrao [<modo>|nenhum]   mostra ou muda o padrão para contas novas ("nenhum": o cshub não mexe no agy)
+        [--confiar <a,b>]            com --padrao, troca as pastas da VM que o cshub marca como confiáveis em contas novas (padrão: ~/espelho; a pasta pessoal sempre entra)
+  cshub agy-login --todas            confere o login do agy em todas as contas cadastradas (acorda as VMs; gasta cerca de 1% da cota de 5 h de cada uma)
+  cshub agy-login <conta>            confere se o agy da VM está logado (--verificar, padrão). O login do agy é separado do gcloud
+        [--link]                     passo 1, sem terminal interativo: mostra o link inteiro (sem quebras) do login do agy
+        [--codigo <código>]          passo 2: digita o código na VM e confere o login
+  cshub zerar [--skill] [--vms] [--projetos-gcp] [--tudo] [--conta <conta>] [--confirmar] [--forcar]
+        volta ao zero. SEM --confirmar só simula (e só olha VMs já ligadas). --skill: tira a skill instalada; --vms: apaga ~/espelho e ~/.cshub das VMs
+        (o login e as configurações do agy ficam); --projetos-gcp: apaga os projetos com rótulo cshub=1 (o Google guarda 30 dias).
+        Contas, logins locais e resultados no PC não são tocados. --forcar: limpa mesmo com tarefa rodando
+  cshub remover <conta> [--simular]  tira a conta do cadastro e apaga o login local (~/.cshub/gcloud/<e-mail>). --simular só mostra o que faria.
+        [--apagar-projeto]           também apaga o projeto GCP cshub-<conta> (só se tiver o rótulo cshub=1). A VM e o login do agy nela ficam
   cshub acordar <conta>              liga a VM (se suspensa) e confirma o acesso
   cshub local [<conta|e-mail>]       marca a conta em uso no PC (a do agy local do orquestrador); ela fica reservada e a anterior e liberada
         [--nenhuma]                  nenhuma conta em uso no PC
@@ -21,6 +40,9 @@ CONTAS
 
 ESPELHO DO PC (sem Git)
   cshub projetos                     projetos e pastas (PC, espelho, resultados)
+  cshub projeto adicionar <nome> --pasta-pc <pasta> [--excluir <a,b,c>] [--repo <url>] [--base main]
+        cadastra um projeto (espelho sem Git; --repo só para o fluxo com Git). --excluir ACRESCENTA padrões à lista padrão (node_modules, dist, build, .git...), ex.: target,.scratchpad
+  cshub projeto remover <nome>       tira o projeto do cadastro (não apaga a pasta do PC, o espelho na VM nem os resultados)
   cshub pasta-pc <projeto> [<pasta>] aponta o espelho para outra pasta do PC (ex.: o worktree da rodada); sem pasta, mostra para onde aponta
   cshub enviar <projeto> <conta> [--tudo] [--com-segredos] [--forcar]
   cshub trazer <projeto> <conta>     traz o que mudou no espelho para a pasta de resultados

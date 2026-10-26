@@ -93,8 +93,12 @@ const PROJECT_PREFIX = 'cshub-';
 async function listCshubProjects(email) {
   const r = await gcloudFor(email, ['projects', 'list', `--filter=${PROJECT_FILTER}`, '--format=csv[no-heading](projectId,name,createTime)'], { timeout: 120000 });
   if (r.code !== 0) return { ok: false, error: r.out.trim().slice(-160) };
-  const todos = r.out.split(/\r?\n/).map((x) => x.trim()).filter(Boolean).map((l) => { const [id, name, t] = l.split(','); return { id, name: name || '', criado: (t || '').slice(0, 10) }; });
-  return { ok: true, validos: todos.filter((x) => x.id.startsWith(PROJECT_PREFIX)), ignorados: todos.filter((x) => !x.id.startsWith(PROJECT_PREFIX)) };
+  return { ok: true, ...parseProjectsCsv(r.out) };
+}
+// csv sem cabeçalho (projectId,name,createTime) → válidos (prefixo cshub-) e ignorados
+function parseProjectsCsv(out) {
+  const todos = String(out).split(/\r?\n/).map((x) => x.trim()).filter(Boolean).map((l) => { const [id, name, t] = l.split(','); return { id, name: name || '', criado: (t || '').slice(0, 10) }; });
+  return { validos: todos.filter((x) => x.id.startsWith(PROJECT_PREFIX)), ignorados: todos.filter((x) => !x.id.startsWith(PROJECT_PREFIX)) };
 }
 async function ensureProject(email) {
   const g = (args) => gcloudFor(email, args, { timeout: 120000 });
@@ -942,4 +946,4 @@ async function zerar({ skill = false, vms = false, projetosGcp = false, conta = 
   return { ok: true, simulado: !confirmar, itens };
 }
 
-module.exports = { openWeb, chromeExe, profileDir, cancelLogin, list, status, add, zerar, removeAccount, agyCheck, agyLoginLink, agyLoginCode, preparar, getPrefs, setPrefs, loginCli, loginLink, loginCode, loginHelper, ensureProject, configDir, remove, update, refreshEndpoint, tmuxList, open, copyCommand, prepare, sshBase, remoteFor, metrics, stopVm, parseMetrics, sshExec, reservedReason, setLocal, getLocal, _zerar: { VM_INSPECT_SH, VM_WIPE_SH, parseInspect } };
+module.exports = { openWeb, chromeExe, profileDir, cancelLogin, list, status, add, zerar, removeAccount, agyCheck, agyLoginLink, agyLoginCode, preparar, getPrefs, setPrefs, loginCli, loginLink, loginCode, loginHelper, ensureProject, configDir, remove, update, refreshEndpoint, tmuxList, open, copyCommand, prepare, sshBase, remoteFor, metrics, stopVm, parseMetrics, sshExec, reservedReason, setLocal, getLocal, _zerar: { VM_INSPECT_SH, VM_WIPE_SH, parseInspect }, _test: { projectBase, parseProjectsCsv, configDir, AGY_MERGE_PY, PROJECT_PREFIX } };

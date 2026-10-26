@@ -29,6 +29,7 @@
     "dist": "vite build && electron-builder --win portable",
     "docs": "node scripts/gerar-docs.js",
     "auditar": "node scripts/auditar-privacidade.js",
+    "test": "node --test \"test/**/*.test.js\"",
     "postinstall": "node scripts/verificar-electron.js --pos-install",
     "verificar": "node scripts/verificar-electron.js"
   },

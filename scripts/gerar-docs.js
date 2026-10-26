@@ -1,12 +1,20 @@
 #!/usr/bin/env node
 // Gera docs/CODIGOS-DE-ERRO.md (a partir de electron/errors.js) e docs/CSHUB.md (a partir do texto de ajuda da CLI).
-// Uso: npm run docs
+// Uso: npm run docs   (--check: não grava; sai com 1 se algum doc estiver desatualizado)
 const fs = require('fs');
 const path = require('path');
 const errors = require('../electron/errors');
 
 const root = path.join(__dirname, '..');
-const out = (f, s) => { fs.mkdirSync(path.join(root, 'docs'), { recursive: true }); fs.writeFileSync(path.join(root, 'docs', f), s.replace(/\r\n/g, '\n'), 'utf8'); };
+const CHECK = process.argv.includes('--check');
+const stale = [];
+const out = (f, s) => {
+  const file = path.join(root, 'docs', f);
+  const txt = s.replace(/\r\n/g, '\n');
+  if (CHECK) { let cur = ''; try { cur = fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n'); } catch {} if (cur !== txt) stale.push('docs/' + f); return; }
+  fs.mkdirSync(path.join(root, 'docs'), { recursive: true });
+  fs.writeFileSync(file, txt, 'utf8');
+};
 
 // código -> [o que significa, o que fazer]
 const D = {
@@ -113,4 +121,7 @@ const src = fs.readFileSync(path.join(root, 'cli', 'cshub.js'), 'utf8');
 const m = src.match(/const HELP = `([\s\S]*?)`;/);
 if (!m) { console.error('Não achei o HELP em cli/cshub.js'); process.exit(1); }
 out('CSHUB.md', '# Referência do `cshub`\n\n> Gerado por `npm run docs` a partir do texto de ajuda da CLI (`cshub ajuda`). Não edite à mão.\n\n```text\n' + m[1].replace(/\\`/g, '`').trim() + '\n```\n\nCódigos de erro: [CODIGOS-DE-ERRO.md](CODIGOS-DE-ERRO.md).\n');
-console.log('docs/CODIGOS-DE-ERRO.md e docs/CSHUB.md gerados (' + codes.length + ' códigos).');
+if (CHECK) {
+  if (stale.length) { console.error('Desatualizado: ' + stale.join(', ') + '. Rode: npm run docs'); process.exit(1); }
+  console.log('docs/CODIGOS-DE-ERRO.md e docs/CSHUB.md em dia.');
+} else console.log('docs/CODIGOS-DE-ERRO.md e docs/CSHUB.md gerados (' + codes.length + ' códigos).');
