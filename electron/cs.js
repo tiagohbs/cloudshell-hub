@@ -88,11 +88,19 @@ function projectBase(email) {
   const s = String(email).split('@')[0].toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
   return ('cshub-' + s).slice(0, 30).replace(/-+$/, '');
 }
+const PROJECT_PREFIX = 'cshub-';
+// Projetos da conta com o rótulo cshub=1. "validos" também têm o ID começando com cshub-; os demais ficam em "ignorados" (nunca são apagados).
+async function listCshubProjects(email) {
+  const r = await gcloudFor(email, ['projects', 'list', `--filter=${PROJECT_FILTER}`, '--format=csv[no-heading](projectId,name,createTime)'], { timeout: 120000 });
+  if (r.code !== 0) return { ok: false, error: r.out.trim().slice(-160) };
+  const todos = r.out.split(/\r?\n/).map((x) => x.trim()).filter(Boolean).map((l) => { const [id, name, t] = l.split(','); return { id, name: name || '', criado: (t || '').slice(0, 10) }; });
+  return { ok: true, validos: todos.filter((x) => x.id.startsWith(PROJECT_PREFIX)), ignorados: todos.filter((x) => !x.id.startsWith(PROJECT_PREFIX)) };
+}
 async function ensureProject(email) {
   const g = (args) => gcloudFor(email, args, { timeout: 120000 });
   const setDefault = (id) => g(['config', 'set', 'project', id]);
-  const ex = await g(['projects', 'list', `--filter=${PROJECT_FILTER}`, '--format=value(projectId)']);
-  const found = ex.code === 0 ? ex.out.split(/\r?\n/).map((s) => s.trim()).find(Boolean) : null;
+  const ex = await listCshubProjects(email);
+  const found = ex.ok && ex.validos[0] ? ex.validos[0].id : null;
   if (found) { await setDefault(found); return { ok: true, project: found, created: false }; }
   const base = projectBase(email);
   let last = '';
@@ -795,6 +803,7 @@ async function removeAccount(id, { apagarProjeto = false, simular = false } = {}
   let projetoApagado = null;
   if (apagarProjeto && acc.Project) {
     if (!temLogin) return { ok: false, error: 'Sem o login local da conta não dá para apagar o projeto. Nada foi alterado.' };
+    if (!acc.Project.startsWith(PROJECT_PREFIX)) return { ok: false, error: `O projeto ${acc.Project} não começa com ${PROJECT_PREFIX}: por segurança não o apago. Nada foi alterado.` };
     const lab = await gcloudFor(acc.Email, ['projects', 'describe', acc.Project, '--format=value(labels.cshub)'], { timeout: 60000 });
     if (lab.code !== 0 || lab.out.trim().split(/\r?\n/).pop() !== '1') return { ok: false, error: `O projeto ${acc.Project} não tem o rótulo cshub=1 (ou não foi possível conferir): por segurança não o apago. Nada foi alterado.` };
     const del = await gcloudFor(acc.Email, ['projects', 'delete', acc.Project, '--quiet'], { timeout: 120000 });
@@ -907,12 +916,14 @@ async function zerar({ skill = false, vms = false, projetosGcp = false, conta = 
       itens.push(it);
       if (!fs.existsSync(configDir(acc.Email))) { it.pula = 'sem login local da conta'; continue; }
       const g = (args) => gcloudFor(acc.Email, args, { timeout: 120000 });
-      const ls = await g(['projects', 'list', `--filter=${PROJECT_FILTER}`, '--format=value(projectId)']);
-      if (ls.code !== 0) { it.pula = 'não consegui listar os projetos: ' + ls.out.trim().slice(-160); continue; }
-      it.projetos = ls.out.split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
+      const ls = await listCshubProjects(acc.Email);
+      if (!ls.ok) { it.pula = 'não consegui listar os projetos: ' + ls.error; continue; }
+      it.projetos = ls.validos;
+      it.ignorados = ls.ignorados;   // têm o rótulo mas o ID não começa com cshub-: nunca apagados
+      if (ls.validos.length > 1 && !forcar) { it.bloqueado = `${ls.validos.length} projetos com o rótulo e o prefixo (esperado: 1 por conta). Confira a lista e use --forcar para apagar todos`; continue; }
       if (!confirmar) continue;
       it.apagados = [];
-      for (const id of it.projetos) {
+      for (const { id } of it.projetos) {
         const d = await g(['projects', 'delete', id, '--quiet']);
         if (d.code === 0) it.apagados.push(id); else it.avisos.push(`não consegui apagar ${id}: ${d.out.trim().slice(-120)}`);
       }

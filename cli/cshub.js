@@ -339,7 +339,13 @@ function localAgyHealth() {
         } else if (it.tipo === 'projetos-gcp') {
           const cab = `GCP ${it.conta}: `;
           if (it.pula) linhas.push(cab + 'pulada (' + it.pula + ')');
-          else linhas.push(cab + (it.projetos.length ? (r.simulado ? 'apagaria ' : 'apagados: ') + (r.simulado ? it.projetos : it.apagados).join(', ') : 'nenhum projeto com o rótulo cshub=1') + it.avisos.map((a) => `\n    AVISO: ${a}`).join(''));
+          else if (it.bloqueado) linhas.push(cab + 'NÃO apago: ' + it.bloqueado + ': ' + it.projetos.map((x) => `${x.id} (${x.name}, criado ${x.criado})`).join('; '));
+          else {
+            const pj = (r.simulado ? it.projetos : it.projetos.filter((x) => it.apagados.includes(x.id))).map((x) => `${x.id} ("${x.name}", criado ${x.criado})`);
+            linhas.push(cab + (pj.length ? (r.simulado ? 'apagaria ' : 'apagados: ') + pj.join('; ') : 'nenhum projeto com o rótulo cshub=1 e o prefixo cshub-')
+              + (it.ignorados.length ? `\n    NÃO apagaria (rótulo cshub=1 mas ID sem o prefixo cshub-): ${it.ignorados.map((x) => `${x.id} ("${x.name}")`).join('; ')}` : '')
+              + it.avisos.map((a) => `\n    AVISO: ${a}`).join(''));
+          }
         }
       }
       print(r, (r.simulado ? 'SIMULAÇÃO (nada foi alterado). Para executar, repita o comando com --confirmar.\n' : 'Feito:\n') + linhas.map((x) => '  - ' + x).join('\n') + '\nNão são tocados: contas, logins locais (~/.cshub/gcloud), resultados no PC, o login e as configurações do agy nas VMs.');
