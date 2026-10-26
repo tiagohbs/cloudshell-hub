@@ -16,7 +16,8 @@ CONTAS
   cshub contas                       contas: [LIVRE] ou [BLOQUEADA: motivo] (em-uso-no-pc, reserva-manual, sem-cota-gemini, sem-horas-vm, sem-login), VM, horas 7d
   cshub login [<apelido>]            loga uma conta pelo terminal (link + código), guarda a config isolada em ~/.cshub/gcloud/<e-mail>,
         [--importar <e-mail>]        cria o projeto GCP cshub-<conta> (rótulo cshub=1) e cadastra a conta. --importar: só cadastra um login já guardado
-  cshub login --link                 sem terminal interativo (agentes), passo 1: mostra o link de login do Google e deixa um ajudante esperando o código
+  cshub login --link [--abrir]       sem terminal interativo (agentes), passo 1: mostra o link de login do Google e deixa um ajudante esperando o código;
+                                     --abrir tenta abrir o link no navegador (no celular: termux-open-url), sem precisar copiar
   cshub login --codigo <código> [<apelido>]   passo 2: entrega o código, guarda a config isolada, cria o projeto e cadastra a conta
   cshub preparar <conta>             acorda a VM e aplica no agy dela as preferências do cshub (hoje: toolPermission=always-proceed; não sobrescreve o que você já escolheu)
         [--permissao <modo>]         força outro valor de toolPermission nesta conta (ex.: o que o agy aceitar no lugar de always-proceed)
@@ -25,7 +26,7 @@ CONTAS
         [--confiar <a,b>]            com --padrao, troca as pastas da VM que o cshub marca como confiáveis em contas novas (padrão: ~/espelho; a pasta pessoal sempre entra)
   cshub agy-login --todas            confere o login do agy em todas as contas cadastradas (acorda as VMs; gasta cerca de 1% da cota de 5 h de cada uma)
   cshub agy-login <conta>            confere se o agy da VM está logado (--verificar, padrão). O login do agy é separado do gcloud
-        [--link]                     passo 1, sem terminal interativo: mostra o link inteiro (sem quebras) do login do agy
+        [--link [--abrir]]           passo 1, sem terminal interativo: mostra o link inteiro (sem quebras) do login do agy; --abrir abre no navegador
         [--codigo <código>]          passo 2: digita o código na VM e confere o login
   cshub zerar [--skill] [--vms] [--projetos-gcp] [--tudo] [--conta <conta>] [--confirmar] [--forcar]
         volta ao zero. SEM --confirmar só simula (e só olha VMs já ligadas). --skill: tira a skill instalada; --vms: apaga ~/espelho e ~/.cshub das VMs
@@ -285,6 +286,7 @@ function localAgyHealth() {
       if (flags.has('--link')) {
         const r = await cs.agyLoginLink(a1);
         if (!r.ok) fail(r.error, r);
+        if (flags.has('--abrir')) { const o = cs.openUrl(r.link); r.aberto = o.ok; if (!json) log(o.ok ? `(link aberto no navegador via ${o.via}; entre com a conta ${a1} e copie o código)` : `(${o.error})`); }
         print(r, `Abra este link e entre com a conta ${a1}:\n\n${r.link}\n\nDepois rode: cshub agy-login ${a1} --codigo <código>`);
         break;
       }
@@ -358,6 +360,7 @@ function localAgyHealth() {
       if (flags.has('--link')) {
         const r = await cs.loginLink();
         if (!r.ok) fail(r.error, r);
+        if (flags.has('--abrir')) { const o = cs.openUrl(r.link); r.aberto = o.ok; if (!json) log(o.ok ? `(link aberto no navegador via ${o.via}; entre com a conta e copie o código)` : `(${o.error})`); }
         print(r, `Lembrete: ${r.antes}\n\nAbra este link e entre com a conta:\n\n${r.link}\n\nDepois rode: cshub login --codigo <código> [apelido]\n(o e-mail e o apelido da conta só aparecem depois do código; sem apelido, vale a parte do e-mail antes do @)`);
         break;
       }

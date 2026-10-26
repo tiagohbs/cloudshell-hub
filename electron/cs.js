@@ -845,6 +845,28 @@ async function removeAccount(id, { apagarProjeto = false, simular = false } = {}
   return { ok: true, conta: acc.Name, email: acc.Email, passos, fica, projetoApagado };
 }
 
+// ---------- abrir o link de login no navegador (--abrir) ----------
+// No celular evita copiar um link longo do Termux (a quebra de linha na cópia causa "Bad Request 400").
+// Ordem: termux-open-url (Termux), o mesmo pelo caminho completo (de dentro do Ubuntu do proot-distro), xdg-open, open, start.
+const TERMUX_OPEN = '/data/data/com.termux/files/usr/bin/termux-open-url';
+function openerCandidates(platform = process.platform, exists = fs.existsSync) {
+  if (platform === 'win32') return [['cmd', ['/c', 'start', '""']]];
+  if (platform === 'darwin') return [['open', []]];
+  const l = [['termux-open-url', []]];
+  if (exists(TERMUX_OPEN)) l.push([TERMUX_OPEN, []]);
+  l.push(['xdg-open', []]);
+  return l;
+}
+function openUrl(url) {
+  if (!/^https:\/\/accounts\.google\.com\/\S+$/.test(String(url))) return { ok: false, error: 'Só abro links de login do Google (https://accounts.google.com/...)' };
+  const { spawnSync } = require('child_process');
+  for (const [cmd, pre] of openerCandidates()) {
+    const r = spawnSync(cmd, [...pre, url], { stdio: 'ignore', timeout: 15000, windowsHide: true });
+    if (!r.error && r.status === 0) return { ok: true, via: path.basename(cmd) };
+  }
+  return { ok: false, error: 'Não consegui abrir o navegador daqui: copie o link.' };
+}
+
 // ---------- login do agy na VM (cshub agy-login) ----------
 // O agy da VM tem login próprio (não é o do gcloud). Roda numa sessão tmux da VM: o link sai inteiro (sem quebras) e o código é digitado nela.
 const AGY_TMUX = 'cshub-agy-login';
@@ -965,4 +987,4 @@ async function zerar({ skill = false, vms = false, projetosGcp = false, conta = 
   return { ok: true, simulado: !confirmar, itens };
 }
 
-module.exports = { openWeb, chromeExe, profileDir, cancelLogin, list, status, add, zerar, removeAccount, agyCheck, agyLoginLink, agyLoginCode, preparar, getPrefs, setPrefs, loginCli, loginLink, loginCode, loginHelper, ensureProject, configDir, remove, update, refreshEndpoint, tmuxList, open, copyCommand, prepare, sshBase, remoteFor, metrics, stopVm, parseMetrics, sshExec, reservedReason, setLocal, getLocal, _zerar: { VM_INSPECT_SH, VM_WIPE_SH, parseInspect }, _test: { run, projectBase, parseProjectsCsv, configDir, AGY_MERGE_PY, PROJECT_PREFIX } };
+module.exports = { openWeb, chromeExe, profileDir, cancelLogin, list, status, add, openUrl, zerar, removeAccount, agyCheck, agyLoginLink, agyLoginCode, preparar, getPrefs, setPrefs, loginCli, loginLink, loginCode, loginHelper, ensureProject, configDir, remove, update, refreshEndpoint, tmuxList, open, copyCommand, prepare, sshBase, remoteFor, metrics, stopVm, parseMetrics, sshExec, reservedReason, setLocal, getLocal, _zerar: { VM_INSPECT_SH, VM_WIPE_SH, parseInspect }, _test: { run, openUrl, openerCandidates, TERMUX_OPEN, projectBase, parseProjectsCsv, configDir, AGY_MERGE_PY, PROJECT_PREFIX } };

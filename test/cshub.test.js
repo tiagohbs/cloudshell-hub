@@ -149,6 +149,17 @@ test('run: no estouro do prazo mata o grupo inteiro (sem gcloud/python órfão s
   assert.equal(vivo, false, 'o processo neto (sleep) também morreu');
 });
 
+// ---------- --abrir ----------
+test('openUrl: só aceita links de login do Google; ordem dos abridores por sistema', () => {
+  assert.equal(cs._test.openUrl('https://example.com/x').ok, false);
+  assert.equal(cs._test.openUrl('https://accounts.google.com/x; rm -rf ~').ok, false, 'sem espaços nem comandos');
+  const { openerCandidates, TERMUX_OPEN } = cs._test;
+  assert.deepEqual(openerCandidates('linux', () => true).map((x) => x[0]), ['termux-open-url', TERMUX_OPEN, 'xdg-open'], 'Ubuntu do proot enxerga o termux-open-url pelo caminho completo');
+  assert.deepEqual(openerCandidates('linux', () => false).map((x) => x[0]), ['termux-open-url', 'xdg-open']);
+  assert.equal(openerCandidates('darwin')[0][0], 'open');
+  assert.equal(openerCandidates('win32')[0][0], 'cmd');
+});
+
 // ---------- preferências ----------
 test('preferências: padrão always-proceed + ~/espelho; setPrefs grava e getPrefs lê', () => {
   assert.deepEqual(cs.getPrefs(), { toolPermission: 'always-proceed', trustedFolders: ['~/espelho'] });
