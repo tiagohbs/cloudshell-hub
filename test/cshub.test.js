@@ -219,7 +219,8 @@ test('docs/CSHUB.md e docs/CODIGOS-DE-ERRO.md batem com a ajuda da CLI e com err
 });
 
 // ---------- CLI ----------
-test('CLI: ajuda funciona e zerar sem escopo sai com erro', () => {
+const semDeps = !fs.existsSync(path.join(__dirname, '..', 'node_modules', 'tar')) && 'dependências ausentes: rode npm install --omit=dev';
+test('CLI: ajuda funciona e zerar sem escopo sai com erro', { skip: semDeps }, () => {
   const cli = path.join(__dirname, '..', 'cli', 'cshub.js');
   const env = { ...process.env, HOME: TMP };
   const a = spawnSync(process.execPath, [cli, 'ajuda'], { env, encoding: 'utf8' });
