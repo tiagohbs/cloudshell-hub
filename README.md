@@ -90,6 +90,12 @@ Não quer mexer no terminal? Peça a um assistente com acesso ao seu computador 
 >
 > Caso algo precise da minha interferência (login no Google, aceitar termos, permissão de administrador, download bloqueado, etc.), pare, me avise e me dê o passo a passo, com linguagem simples, do que devo fazer. Depois que eu concluir, continue de onde parou. No fim, me diga o que ficou pronto e o que ainda depende de mim.
 
+**No celular (Android, Termux)**, o caminho é outro: um script instala tudo. Instale o Termux do F-Droid, deixe a bateria dele "sem restrições" e, se for usar um assistente no próprio Termux, cole:
+
+> Estou no Android, no Termux. Instale o Cloud Shell Hub com o script oficial, sem instalar nada à mão: baixe https://raw.githubusercontent.com/tiagohbs/cloudshell-hub/main/scripts/instalar-android.sh, rode primeiro `bash instalar-android.sh --simular` e me mostre o que ele vai fazer; depois rode `bash instalar-android.sh` (acrescente `--claude` e `--colab` se eu pedir). A primeira vez leva de 30 a 45 minutos e a tela pode ficar parada: não interrompa. No fim, me mostre o RESUMO. Logins (Google, Claude, GitHub) são comigo: me dê o passo a passo.
+
+Sem assistente, rode os comandos da seção [Android (Termux)](#android-termux) direto no Termux.
+
 Se você só quer **usar** o app, o mais fácil é baixar o `.exe` portátil na página de [Releases](https://github.com/tiagohbs/cloudshell-hub/releases), sem instalar Node nem rodar comandos.
 
 ## Uso rápido

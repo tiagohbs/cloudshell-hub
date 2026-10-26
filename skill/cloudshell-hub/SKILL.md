@@ -65,7 +65,7 @@ Se o usuário preferir um terminal de verdade: `cshub ssh <conta> --agy` (no Mae
 
 Variações: `cshub login [<apelido>]` faz tudo de forma interativa num terminal de verdade (link e código no mesmo comando); **sem terminal interativo, como um agente de IA, só o `--link` e o `--codigo` servem**. `cshub login --importar <e-mail>` só cadastra um login que já está guardado em `~/.cshub/gcloud/<e-mail>/`.
 
-- Instalação do próprio `cshub` (para uma IA que precisa instalá-lo): Node 20+, `gcloud` e `ssh`; `npm install --omit=dev` na pasta do repositório (sem isso o CLI não abre) e um link do `cshub` (Linux/macOS) ou a pasta no PATH (`cshub.cmd`, Windows). Detalhes no README, seção "Só o CLI".
+- Instalação do próprio `cshub` (para uma IA que precisa instalá-lo): Node 20+, `gcloud` e `ssh`; `npm install --omit=dev` na pasta do repositório (sem isso o CLI não abre) e um link do `cshub` (Linux/macOS) ou a pasta no PATH (`cshub.cmd`, Windows). Detalhes no README, seção "Só o CLI". **No Android (Termux), não instale à mão:** use o script `scripts/instalar-android.sh` (baixe de `https://raw.githubusercontent.com/tiagohbs/cloudshell-hub/main/scripts/instalar-android.sh`), rode antes com `--simular` e avise o usuário que a primeira vez leva de 30 a 45 min. Ele monta o Ubuntu (`proot-distro`), Node, `gcloud`, `cshub` e a skill; `--claude` e `--colab` são opcionais.
 Cuidados:
 - Nunca copie, espelhe, comite nem cole em tarefa nada de `~/.cshub/gcloud/` ou o código de verificação: a pasta dá acesso à conta. Não aponte `cshub pasta-pc` para a pasta pessoal.
 - Não crie projeto à mão nem use `gen-lang-client-…` (do Gemini): o projeto de cada conta é o `cshub-<conta>`.
