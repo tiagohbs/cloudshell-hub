@@ -29,6 +29,14 @@ function find(list, id) {
 }
 
 // ---------- processos ----------
+// Fora do Windows cada comando roda no próprio grupo de processos: no estouro do prazo (ou se o cshub sair)
+// o grupo inteiro morre. Antes só o "sh" intermediário morria e o gcloud (python) seguia órfão, gastando CPU.
+const POSIX = process.platform !== 'win32';
+const liveGroups = new Set();
+const killTree = (child) => {
+  try { if (POSIX && child.pid) process.kill(-child.pid, 'SIGKILL'); else child.kill(); } catch { try { child.kill(); } catch {} }
+};
+process.on('exit', () => { for (const pid of liveGroups) { try { process.kill(-pid, 'SIGKILL'); } catch {} } });
 function run(cmd, args, { timeout = 60000, shell = false, input, onChild, env } = {}) {
   return new Promise((resolve) => {
     let out = '';
@@ -38,22 +46,24 @@ function run(cmd, args, { timeout = 60000, shell = false, input, onChild, env } 
       if (shell) {
         // Node 24 desaconselha args + shell: monta a linha de comando ja com aspas
         const q = (a) => (/[\s"()&|<>^%!]/.test(a) ? '"' + String(a).replace(/"/g, '\\"') + '"' : a);
-        child = spawn([cmd, ...args.map(q)].join(' '), { shell: true, windowsHide: true, ...(env ? { env } : {}) });
+        child = spawn([cmd, ...args.map(q)].join(' '), { shell: true, windowsHide: true, detached: POSIX, ...(env ? { env } : {}) });
       } else {
-        child = spawn(cmd, args, { windowsHide: true });
+        child = spawn(cmd, args, { windowsHide: true, detached: POSIX });
       }
     } catch (e) {
       return resolve({ code: -1, out: String(e) });
     }
     if (onChild) onChild(child);
+    if (POSIX && child.pid) liveGroups.add(child.pid);
     const finish = (code) => {
       if (done) return;
       done = true;
       clearTimeout(timer);
+      liveGroups.delete(child.pid);
       resolve({ code, out });
     };
     const timer = setTimeout(() => {
-      try { child.kill(); } catch {}
+      killTree(child);
       finish(-2);
     }, timeout);
     child.stdout.on('data', (d) => (out += d));
@@ -946,4 +956,4 @@ async function zerar({ skill = false, vms = false, projetosGcp = false, conta = 
   return { ok: true, simulado: !confirmar, itens };
 }
 
-module.exports = { openWeb, chromeExe, profileDir, cancelLogin, list, status, add, zerar, removeAccount, agyCheck, agyLoginLink, agyLoginCode, preparar, getPrefs, setPrefs, loginCli, loginLink, loginCode, loginHelper, ensureProject, configDir, remove, update, refreshEndpoint, tmuxList, open, copyCommand, prepare, sshBase, remoteFor, metrics, stopVm, parseMetrics, sshExec, reservedReason, setLocal, getLocal, _zerar: { VM_INSPECT_SH, VM_WIPE_SH, parseInspect }, _test: { projectBase, parseProjectsCsv, configDir, AGY_MERGE_PY, PROJECT_PREFIX } };
+module.exports = { openWeb, chromeExe, profileDir, cancelLogin, list, status, add, zerar, removeAccount, agyCheck, agyLoginLink, agyLoginCode, preparar, getPrefs, setPrefs, loginCli, loginLink, loginCode, loginHelper, ensureProject, configDir, remove, update, refreshEndpoint, tmuxList, open, copyCommand, prepare, sshBase, remoteFor, metrics, stopVm, parseMetrics, sshExec, reservedReason, setLocal, getLocal, _zerar: { VM_INSPECT_SH, VM_WIPE_SH, parseInspect }, _test: { run, projectBase, parseProjectsCsv, configDir, AGY_MERGE_PY, PROJECT_PREFIX } };

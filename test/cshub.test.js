@@ -132,6 +132,23 @@ test('AGY_MERGE_PY: só acrescenta, respeita a escolha da pessoa e recusa arquiv
   assert.equal(fs.readFileSync(f, 'utf8'), '{oops');
 });
 
+// ---------- run(): estouro de prazo não deixa órfãos ----------
+test('run: no estouro do prazo mata o grupo inteiro (sem gcloud/python órfão segurando CPU ou a saída)', { skip: process.platform === 'win32' && 'só POSIX' }, async () => {
+  const pidFile = path.join(TMP, 'neto.pid');
+  const script = path.join(TMP, 'neto.sh');   // em arquivo: dentro de aspas o "$!" seria expandido pelo sh de fora
+  // o neto não herda a saída: se sobrar órfão, o teste FALHA em vez de travar a suíte (no defeito antigo, travava)
+  fs.writeFileSync(script, `sleep 300 >/dev/null 2>&1 &\necho $! > ${pidFile}\nwait\n`);
+  const r = await cs._test.run('bash', [script], { shell: true, timeout: 800 });
+  assert.equal(r.code, -2, 'estourou o prazo');
+  const neto = Number(fs.readFileSync(pidFile, 'utf8'));
+  assert.ok(neto > 1, 'leu o PID do neto');
+  await new Promise((res) => setTimeout(res, 300));
+  let vivo = true;
+  try { process.kill(neto, 0); } catch { vivo = false; }
+  if (vivo) { try { process.kill(neto, 'SIGKILL'); } catch {} }   // não deixa o órfão para trás
+  assert.equal(vivo, false, 'o processo neto (sleep) também morreu');
+});
+
 // ---------- preferências ----------
 test('preferências: padrão always-proceed + ~/espelho; setPrefs grava e getPrefs lê', () => {
   assert.deepEqual(cs.getPrefs(), { toolPermission: 'always-proceed', trustedFolders: ['~/espelho'] });
