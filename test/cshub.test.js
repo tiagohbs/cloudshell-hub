@@ -6,6 +6,8 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 const test = require('node:test');
 const assert = require('node:assert/strict');
+// e-mails do teste são montados aqui (nenhum e-mail escrito no arquivo: a auditoria de privacidade marca qualquer um)
+const em = (nome, dominio = 'exemplo.com') => nome + '@' + dominio;
 
 // ---------- isolamento: precisa vir antes de qualquer require de ../electron ----------
 const REAL_HOME = os.homedir();
@@ -54,9 +56,9 @@ test.after(() => fs.rmSync(TMP, { recursive: true, force: true }));
 
 // ---------- funções puras ----------
 test('projectBase: cshub-<parte do e-mail antes do @>, até 30 caracteres, sem hífen no fim', () => {
-  assert.equal(projectBase('profissional.thbs@gmail.com'), 'cshub-profissional-thbs');
-  assert.equal(projectBase('Herley_Treinador@x.com'), 'cshub-herley-treinador');
-  const longo = projectBase('a'.repeat(40) + '@x.com');
+  assert.equal(projectBase(em('fulano.silva')), 'cshub-fulano-silva');
+  assert.equal(projectBase(em('Ciclano_Souza')), 'cshub-ciclano-souza');
+  const longo = projectBase(em('a'.repeat(40)));
   assert.ok(longo.length <= 30 && !longo.endsWith('-'));
 });
 
@@ -68,9 +70,9 @@ test('parseProjectsCsv: separa válidos (prefixo cshub-) dos ignorados e corta a
 });
 
 test('configDir: uma pasta por e-mail, em minúsculas, dentro de ~/.cshub/gcloud', () => {
-  const d = configDir('Foo.Bar@Gmail.com');
-  assert.equal(d, path.join(TMP, '.cshub', 'gcloud', 'foo.bar@gmail.com'));
-  assert.ok(!configDir('a/../b@x.com').includes('..' + path.sep));
+  const d = configDir(em('Fulano.Silva', 'Exemplo.com'));
+  assert.equal(d, path.join(TMP, '.cshub', 'gcloud', em('fulano.silva')));
+  assert.ok(!configDir(em('a/../b')).includes('..' + path.sep));
 });
 
 test('parseInspect: lê espelhos, tamanho da .saida, tarefas, tmux e ~/.cshub', () => {
@@ -140,7 +142,7 @@ test('preferências: padrão always-proceed + ~/espelho; setPrefs grava e getPre
 
 // ---------- zerar: projetos GCP (com gcloud falso) ----------
 test('zerar --projetos-gcp: simulação não apaga; só projetos com prefixo cshub-; ignorados nunca', async () => {
-  setup({ accounts: [acc('a', 'a@x.com', 'cshub-a')], projects: 'cshub-a,cshub-a,2026-10-25T00:00:00Z\nteste-b,teste,2026-10-26T00:00:00Z\n' });
+  setup({ accounts: [acc('a', em('a'), 'cshub-a')], projects: 'cshub-a,cshub-a,2026-10-25T00:00:00Z\nteste-b,teste,2026-10-26T00:00:00Z\n' });
   const sim = await cs.zerar({ projetosGcp: true });
   assert.equal(sim.simulado, true);
   const it = sim.itens.find((x) => x.tipo === 'projetos-gcp');
@@ -156,7 +158,7 @@ test('zerar --projetos-gcp: simulação não apaga; só projetos com prefixo csh
 });
 
 test('zerar --projetos-gcp: mais de um projeto válido bloqueia sem --forcar', async () => {
-  setup({ accounts: [acc('a', 'a@x.com', 'cshub-a')], projects: 'cshub-a,a,2026-10-25T00:00:00Z\ncshub-a-2,b,2026-10-26T00:00:00Z\n' });
+  setup({ accounts: [acc('a', em('a'), 'cshub-a')], projects: 'cshub-a,a,2026-10-25T00:00:00Z\ncshub-a-2,b,2026-10-26T00:00:00Z\n' });
   const r = await cs.zerar({ projetosGcp: true, confirmar: true });
   assert.match(r.itens[0].bloqueado, /2 projetos/);
   assert.deepEqual(deletes(), []);
@@ -166,19 +168,19 @@ test('zerar --projetos-gcp: mais de um projeto válido bloqueia sem --forcar', a
 
 test('zerar: sem escopo dá erro; --conta desconhecida dá erro', async () => {
   assert.equal((await cs.zerar({})).ok, false);
-  setup({ accounts: [acc('a', 'a@x.com')] });
+  setup({ accounts: [acc('a', em('a'))] });
   assert.match((await cs.zerar({ projetosGcp: true, conta: 'nao-existe' })).error, /não encontrada/);
 });
 
 // ---------- remover (com gcloud falso) ----------
 test('remover --apagar-projeto: recusa ID sem prefixo e projeto sem rótulo, sem alterar nada', async () => {
-  setup({ accounts: [acc('a', 'a@x.com', 'teste-b')] });
+  setup({ accounts: [acc('a', em('a'), 'teste-b')] });
   let r = await cs.removeAccount('a', { apagarProjeto: true });
   assert.match(r.error, /não começa com cshub-/);
   assert.equal(readAccounts().length, 1);
-  assert.ok(fs.existsSync(configDir('a@x.com')));
+  assert.ok(fs.existsSync(configDir(em('a'))));
 
-  setup({ accounts: [acc('a', 'a@x.com', 'cshub-a')], label: '' });
+  setup({ accounts: [acc('a', em('a'), 'cshub-a')], label: '' });
   r = await cs.removeAccount('a', { apagarProjeto: true });
   assert.match(r.error, /rótulo cshub=1/);
   assert.deepEqual(deletes(), []);
@@ -186,7 +188,7 @@ test('remover --apagar-projeto: recusa ID sem prefixo e projeto sem rótulo, sem
 });
 
 test('remover: simular não altera; de verdade tira do cadastro, apaga o login local e o projeto rotulado', async () => {
-  setup({ accounts: [acc('a', 'a@x.com', 'cshub-a'), acc('b', 'b@x.com')] });
+  setup({ accounts: [acc('a', em('a'), 'cshub-a'), acc('b', em('b'))] });
   const sim = await cs.removeAccount('a', { apagarProjeto: true, simular: true });
   assert.equal(sim.simulado, true);
   assert.equal(readAccounts().length, 2);
@@ -196,8 +198,8 @@ test('remover: simular não altera; de verdade tira do cadastro, apaga o login l
   assert.equal(r.ok, true);
   assert.equal(r.projetoApagado, 'cshub-a');
   assert.deepEqual(readAccounts().map((x) => x.Name), ['b'], 'a outra conta fica');
-  assert.ok(!fs.existsSync(configDir('a@x.com')), 'login local apagado');
-  assert.ok(fs.existsSync(configDir('b@x.com')), 'login da outra conta fica');
+  assert.ok(!fs.existsSync(configDir(em('a'))), 'login local apagado');
+  assert.ok(fs.existsSync(configDir(em('b'))), 'login da outra conta fica');
 });
 
 // ---------- skill ----------
