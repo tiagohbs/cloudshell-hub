@@ -42,6 +42,8 @@ cshub agy-login --todas          # confere o login do agy de cada VM (gasta ~1% 
 cshub skill instalar             # para agentes de IA (Claude etc.)
 ```
 
+Para atualizar: `git pull` na pasta do `cshub`. O `cshub skill instalar` cria um gancho do Git que reinstala a skill a cada pull; depois, reinicie a sessão da IA para ela reler a skill (todo comando avisa se a skill instalada estiver desatualizada).
+
 Agentes que chamam o `cshub` devem gravar a saída em arquivo (`--json > arquivo`), **não** passar por `| tail`: um processo que demora segura o pipe e trava o terminal do agente. O fluxo completo está em `skill/cloudshell-hub/SKILL.md`.
 
 ### Android (Termux)

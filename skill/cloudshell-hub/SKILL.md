@@ -75,6 +75,9 @@ Cuidados:
 ## Excluir uma conta
 `cshub remover <conta> --simular` mostra o que seria feito, sem alterar nada: **rode sempre primeiro e mostre ao usuário**. Só rode sem `--simular` com a confirmação dele, para aquela conta. Remover tira a conta do cadastro e apaga o login local (`~/.cshub/gcloud/<e-mail>/`, depois de revogar). **Ficam:** a VM do Cloud Shell, o login do `agy` nela, os resultados em `~/Documents/<projeto>-nuvem` e o projeto GCP `cshub-<conta>`. `--apagar-projeto` também apaga o projeto GCP (o Google guarda 30 dias; só apaga se o projeto tiver o rótulo `cshub=1`, senão recusa sem alterar nada): use só se o usuário pedir esse apagamento. Para voltar a usar a conta, cadastre de novo com `cshub login`.
 
+## Atualizar o cshub e esta skill
+`git pull` na pasta do `cshub` atualiza o repositório; a cópia desta skill que a IA lê (`~/.claude/skills/cloudshell-hub/`) só muda com `cshub skill instalar`. O `skill instalar` cria um gancho do Git (`post-merge`) que reinstala a skill sozinho a cada `git pull` com mudanças (se já houver outro `post-merge`, ele avisa e não mexe). Enquanto a cópia estiver diferente da do repositório, todo comando do `cshub` avisa (no `--json`, campo `avisoSkill`): rode `cshub skill instalar`. **Depois de atualizar, a sessão da IA precisa ser reiniciada** para reler a skill (no Claude: `/exit` e `claude --continue`); uma sessão já aberta segue com a versão antiga.
+
 ## Voltar ao zero (limpeza)
 `cshub zerar` desfaz o que o `cshub` montou. **Sem `--confirmar` ele só simula: rode sempre primeiro, mostre a simulação ao usuário e só execute com a confirmação dele, escopo por escopo.** Escopos (combináveis, ou `--tudo`; `--conta <conta>` limita a uma):
 - `--skill`: apaga a pasta da skill instalada (reversível com `cshub skill instalar`). Faça por último: a IA que está lendo a skill perde o manual na próxima sessão.

@@ -123,7 +123,13 @@ for (let i = 0; i < argv.length; i++) {
 let [cmd, a1, a2, a3] = pos;
 const json = flags.has('--json');
 
-const print = (obj, text) => process.stdout.write((json ? JSON.stringify(obj) : text) + '\n');
+// skill instalada diferente da do repositório (git pull sem "skill instalar"): avisa em qualquer comando.
+// Em --json o aviso vai como campo (uma linha solta quebraria o JSON de quem grava a saída num arquivo).
+const SKILL_AVISO = 'skill cloudshell-hub desatualizada: rode "cshub skill instalar" e reinicie a sessão da IA (no Claude: /exit e claude --continue)';
+let skillVelha = false;
+try { skillVelha = !['skill', 'ajuda', 'help', '_login-ajudante'].includes(process.argv[2]) && require('../electron/skill').desatualizada(); } catch {}
+if (skillVelha && !process.argv.includes('--json')) process.stderr.write('Aviso: ' + SKILL_AVISO + '\n');
+const print = (obj, text) => process.stdout.write((json ? JSON.stringify(skillVelha && obj && typeof obj === 'object' && !Array.isArray(obj) ? { ...obj, avisoSkill: SKILL_AVISO } : obj) : text) + '\n');
 const errors = require('../electron/errors');
 // sair sem process.exit com conexões ainda fechando (no Windows isso derruba o Node: Assertion failed UV_HANDLE_CLOSING)
 class Quit extends Error {}
@@ -190,7 +196,9 @@ function localAgyHealth() {
       } else if (a1 === 'instalar') {
         const r = await sk.install();
         if (!r.ok) fail(r.error);
-        print(r, 'Skill instalada em ' + r.caminho + (r.backup ? '\nCópia da anterior: ' + r.backup : '') + '\nReinicie a sessão do Claude no Maestri para ela ser relida.');
+        const g = r.gancho || {};
+        const gt = g.ok ? 'Gancho do git instalado: todo git pull que trouxer mudanças reinstala a skill sozinho.' : g.motivo === 'outro-gancho' ? 'Aviso: já existe outro post-merge em ' + g.caminho + '; não mexi. Depois de cada git pull, rode cshub skill instalar.' : g.motivo === 'sem-git' ? '' : 'Não consegui criar o gancho do git (' + g.motivo + ').';
+        print(r, 'Skill instalada em ' + r.caminho + (r.backup ? '\nCópia da anterior: ' + r.backup : '') + (gt ? '\n' + gt : '') + '\nReinicie a sessão da IA para ela ser relida (no Claude: /exit e claude --continue).');
       } else {
         const r = await sk.status();
         const t = { atualizada: 'instalada e atualizada', desatualizada: 'instalada, mas DESATUALIZADA (rode: cshub skill instalar)', ausente: 'NÃO instalada (rode: cshub skill instalar)', 'sem-origem': 'arquivo original não encontrado na pasta do app' }[r.estado];

@@ -231,8 +231,44 @@ test('remover: simular não altera; de verdade tira do cadastro, apaga o login l
 });
 
 // ---------- skill ----------
+test('skill: desatualizada() acusa cópia diferente do repositório; installHook cria o post-merge sem pisar em outro', async () => {
+  await skill.install({ gancho: false });
+  assert.equal(skill.desatualizada(), false, 'recém-instalada');
+  fs.appendFileSync(path.join(skill.baseDir(), 'cloudshell-hub', 'SKILL.md'), '\nmudança local');
+  assert.equal(skill.desatualizada(), true, 'diferente do repositório');
+  await skill.install({ gancho: false });
+  assert.equal(skill.desatualizada(), false);
+  // gancho num repositório falso
+  const repo = fs.mkdtempSync(path.join(TMP, 'repo-'));
+  assert.equal(skill.installHook(repo).motivo, 'sem-git');
+  fs.mkdirSync(path.join(repo, '.git', 'hooks'), { recursive: true });
+  const r = skill.installHook(repo);
+  assert.equal(r.ok, true);
+  const txt = fs.readFileSync(r.caminho, 'utf8');
+  assert.ok(txt.startsWith('#!/bin/sh') && txt.includes(skill.HOOK_MARK) && txt.includes('skill instalar'));
+  assert.equal(skill.installHook(repo).ok, true, 'reinstalar o próprio gancho');
+  fs.writeFileSync(r.caminho, '#!/bin/sh\necho meu gancho\n');
+  assert.equal(skill.installHook(repo).motivo, 'outro-gancho', 'não pisa em gancho alheio');
+  assert.match(fs.readFileSync(r.caminho, 'utf8'), /meu gancho/);
+});
+
+test('CLI: avisa skill desatualizada (texto no stderr; no --json vira campo, sem quebrar o JSON)', { skip: !fs.existsSync(path.join(__dirname, '..', 'node_modules', 'tar')) && 'dependências ausentes' }, async () => {
+  await skill.install({ gancho: false });
+  fs.appendFileSync(path.join(skill.baseDir(), 'cloudshell-hub', 'SKILL.md'), '\nmudança local');
+  const cli = path.join(__dirname, '..', 'cli', 'cshub.js');
+  const env = { ...process.env, HOME: TMP };
+  const t = spawnSync(process.execPath, [cli, 'preparar', '--padrao'], { env, encoding: 'utf8' });
+  assert.match(t.stderr, /skill cloudshell-hub desatualizada/);
+  const j = spawnSync(process.execPath, [cli, 'preparar', '--padrao', '--json'], { env, encoding: 'utf8' });
+  const o = JSON.parse(j.stdout.trim());
+  assert.match(o.avisoSkill, /desatualizada/);
+  assert.equal(j.stderr, '', 'no --json nada vai solto para o stderr');
+  await skill.install({ gancho: false });
+  assert.doesNotMatch(spawnSync(process.execPath, [cli, 'preparar', '--padrao'], { env, encoding: 'utf8' }).stderr, /desatualizada/);
+});
+
 test('skill.remove: simular não apaga; remover tira só a pasta cloudshell-hub', async () => {
-  await skill.install();
+  await skill.install({ gancho: false });
   const base = skill.baseDir();
   fs.mkdirSync(path.join(base, 'outra-skill'), { recursive: true });
   assert.equal(skill.remove({ simular: true }).removida, false);

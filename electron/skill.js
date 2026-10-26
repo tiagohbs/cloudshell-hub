@@ -43,7 +43,7 @@ async function status() {
   return { ok: true, estado, instalada: !!hd, origem, caminho: DST, pastaBase: baseDir(), pastaPadrao: PADRAO, personalizada: baseDir() !== PADRAO, pastaOrigem: SRC, cshubNoPath: !!cshub, cshubCaminho: cshub, cshubCmd: cmd };
 }
 
-async function install() {
+async function install({ gancho: comGancho = true } = {}) {
   if (!fs.existsSync(SRC)) return { ok: false, error: 'O arquivo da skill não está na pasta do app (skill\\cloudshell-hub\\SKILL.md).' };
   const DIR = dirOf(), DST = dstOf();
   fs.mkdirSync(DIR, { recursive: true });
@@ -54,7 +54,31 @@ async function install() {
   }
   fs.copyFileSync(SRC, DST);
   if (hash(DST) !== hash(SRC)) return { ok: false, error: 'A cópia não bateu com o original. Tente de novo.' };
-  return { ok: true, caminho: DST, backup };
+  let gancho;
+  if (comGancho) try { gancho = installHook(); } catch (e) { gancho = { ok: false, motivo: String(e && e.message || e) }; }
+  return { ok: true, caminho: DST, backup, gancho };
+}
+
+// true quando a skill instalada existe e difere da do repositório (o git pull atualiza só o repositório)
+function desatualizada() {
+  const hd = hash(dstOf());
+  return !!hd && !!hash(SRC) && hd !== hash(SRC);
+}
+
+// gancho post-merge do Git: todo "git pull" que trouxer mudanças reinstala a skill. Os ganchos ficam em .git/hooks,
+// que não vem no clone; por isso o "skill instalar" (e o instalador do Android, que o chama) cria o gancho.
+// Não mexe num post-merge que não seja do cshub.
+const HOOK_MARK = '# cshub: reinstala a skill depois de git pull';
+function installHook(repo = path.join(__dirname, '..')) {
+  const hooks = path.join(repo, '.git', 'hooks');
+  if (!fs.existsSync(path.join(repo, '.git'))) return { ok: false, motivo: 'sem-git' };
+  const f = path.join(hooks, 'post-merge');
+  if (fs.existsSync(f) && !fs.readFileSync(f, 'utf8').includes(HOOK_MARK)) return { ok: false, motivo: 'outro-gancho', caminho: f };
+  const cli = path.join(repo, 'cli', 'cshub.js').replace(/\\/g, '/');
+  fs.mkdirSync(hooks, { recursive: true });
+  fs.writeFileSync(f, `#!/bin/sh\n${HOOK_MARK}\nnode "${cli}" skill instalar >/dev/null 2>&1 && echo "cshub: skill reinstalada; reinicie a sessão da IA para ela ser relida." || true\n`, { mode: 0o755 });
+  try { fs.chmodSync(f, 0o755); } catch {}
+  return { ok: true, caminho: f };
 }
 
 // remove a pasta da skill (SKILL.md e o .bak). Só apaga a pasta chamada cloudshell-hub dentro da pasta de skills.
@@ -66,4 +90,4 @@ function remove({ simular = false } = {}) {
   return { ok: true, caminho: dir, existia: existe, removida: existe && !simular };
 }
 
-module.exports = { remove, status, install, setBase, baseDir, PADRAO, SRC };
+module.exports = { desatualizada, installHook, HOOK_MARK, remove, status, install, setBase, baseDir, PADRAO, SRC };
