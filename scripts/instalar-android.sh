@@ -25,7 +25,7 @@ while [ $# -gt 0 ]; do
     --repo) REPO="${2:-}"; FWD+=("$1" "$REPO"); shift ;;
     --simular) SIMULAR=1; FWD+=("$1") ;;
     --etapa) ETAPA="${2:-}"; shift ;;
-    -h|--help) sed -n '2,17p' "$0"; exit 0 ;;
+    -h|--help) [ -f "$0" ] && sed -n '2,17p' "$0"; exit 0 ;;
     *) echo "Opção desconhecida: $1 (veja --help)"; exit 2 ;;
   esac
   shift
@@ -52,16 +52,18 @@ detectar_etapa() {
 
 # ---------------------------------------------------------------- etapa 1: Termux
 etapa_termux() {
-  local rootfs="${PREFIX:-/data/data/com.termux/files/usr}/var/lib/proot-distro/installed-rootfs/ubuntu"
   if [ ! -f "$0" ]; then echo "Rode a partir de um arquivo (curl ... -o instalar-android.sh && bash instalar-android.sh)."; exit 2; fi
   passo "Termux: pacotes e Ubuntu (proot-distro)"
   run "pkg update -y && pkg install -y proot-distro curl" || { echo "Falhou o pkg. Termux é o do F-Droid?"; exit 1; }
   tem termux-wake-lock && run "termux-wake-lock"
-  if [ -d "$rootfs" ]; then echo "   Ubuntu já instalado."; else run "proot-distro install ubuntu" || { echo "Falhou a instalação do Ubuntu."; exit 1; }; fi
+  # pergunta ao próprio proot-distro se o Ubuntu existe (a pasta dele muda entre versões do proot-distro)
+  if [ "$SIMULAR" = 0 ] && proot-distro login ubuntu -- true >/dev/null 2>&1; then echo "   Ubuntu já instalado."
+  else run "proot-distro install ubuntu" || { echo "Falhou a instalação do Ubuntu."; exit 1; }; fi
   passo "Continuando dentro do Ubuntu"
-  run "cp '$0' '$rootfs/root/instalar-android.sh'"
-  if [ "$SIMULAR" = 1 ]; then printf '   [simular] proot-distro login ubuntu -- bash /root/instalar-android.sh %s\n' "${FWD[*]}"; exit 0; fi
-  exec proot-distro login ubuntu -- bash /root/instalar-android.sh "${FWD[@]}"
+  # o cat grava o script dentro do Ubuntu e ele roda do arquivo: não depende de onde o proot-distro guarda o Ubuntu
+  # (rodar direto com "bash -s" deixaria apt/npm lerem o resto do script pela entrada padrão)
+  if [ "$SIMULAR" = 1 ]; then printf '   [simular] proot-distro login ubuntu -- bash -c "cat > /root/instalar-android.sh && bash /root/instalar-android.sh --etapa ubuntu %s" < %s\n' "${FWD[*]}" "$0"; exit 0; fi
+  exec proot-distro login ubuntu -- bash -c 'cat > /root/instalar-android.sh && exec bash /root/instalar-android.sh "$@" </dev/null' _ --etapa ubuntu "${FWD[@]}" < "$0"
 }
 
 # ---------------------------------------------------------------- etapa 2: Ubuntu
