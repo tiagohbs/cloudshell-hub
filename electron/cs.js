@@ -202,13 +202,14 @@ async function ensureKeyFiles() {
   if (r.code !== 0 || !fs.existsSync(KEY + '.pub')) throw new Error('Não consegui gerar a chave SSH: ' + r.out.trim());
 }
 
-async function resolveEndpoint(acc) {
+async function resolveEndpoint(acc, log = () => {}) {
   try {
     await ensureKeyFiles();
     const pub = fs.readFileSync(KEY + '.pub', 'utf8').trim();
     const parts = pub.split(/\s+/);
     const keyBody = parts[1] || pub;
     const pubClean = parts.slice(0, 2).join(' ');   // tipo + conteudo, sem comentario
+    log('pedindo o token do gcloud (no celular pode levar ~1 min)…');
     const token = await accessToken(acc.Email);
 
     // 1) estado do ambiente; inicia se estiver suspenso
@@ -216,16 +217,18 @@ async function resolveEndpoint(acc) {
     if (env.status >= 400) return { ok: false, error: 'API do Cloud Shell (' + env.status + '): ' + env.text.slice(0, 400) };
 
     if (env.json.state !== 'RUNNING') {
+      log('VM suspensa: ligando (até ~90 s)…');
       const st = await api(token, 'POST', ':start', {});
       if (st.status >= 400) return { ok: false, error: 'Não consegui iniciar o Cloud Shell (' + st.status + '): ' + st.text.slice(0, 400) };
       for (let i = 0; i < 45; i++) {          // ate ~90 s
         await sleep(2000);
+        if (i && i % 10 === 0) log(`  ainda ligando… ${i * 2} s`);
         env = await api(token, 'GET', '');
         if (env.json.state === 'RUNNING') break;
       }
     }
     if (env.json.state !== 'RUNNING' || !env.json.sshHost) {
-      return { ok: false, error: 'Cloud Shell não ficou ativo (estado: ' + (env.json.state || '?') + ')' };
+      return { ok: false, error: 'Cloud Shell não ficou ativo (estado: ' + (env.json.state || '?') + '). Se esta conta nunca abriu o Cloud Shell ou não aceitou os termos, abra https://shell.cloud.google.com com ela, espere o terminal carregar e tente de novo.' };
     }
 
     // 2) registra a chave publica so se ainda nao estiver la (com novas tentativas)
@@ -235,6 +238,7 @@ async function resolveEndpoint(acc) {
     if (!has) {
       let last = null;
       for (let i = 0; i < 3; i++) {
+        if (i === 0) log('registrando a chave SSH deste aparelho na VM…');
         last = await api(token, 'POST', ':addPublicKey', { key: pubClean });
         if (last.status < 400 || last.status === 409 || /ALREADY_EXISTS/i.test(last.text)) { last = null; break; }
         await sleep(3000);
@@ -242,6 +246,7 @@ async function resolveEndpoint(acc) {
       if (last) {
         warn = 'addPublicKey (' + last.status + '): ' + last.text.replace(/\s+/g, ' ').slice(0, 200);
         // fallback: o gcloud registra a chave ao preparar a conexao (--dry-run nao conecta)
+        log('o registro direto falhou; tentando pelo gcloud (até ~90 s)…');
         const g = await gcloudFor(acc.Email, ['cloud-shell', 'ssh', '--dry-run', '--authorize-session', `--account=${acc.Email}`], { timeout: 90000 });
         warn += ' | fallback gcloud: ' + (/Pushing your public key[\s\S]*done/i.test(g.out) ? 'chave enviada' : g.out.replace(/\s+/g, ' ').slice(-160));
       }
@@ -347,6 +352,8 @@ const LINK_RE = /https:\/\/accounts\.google\.com\/\S+/;
 const gcloudAuthEnv = (dir) => ({ ...process.env, CLOUDSDK_CONFIG: dir });
 const readJson = (f) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return null; } };
 
+const LOGIN_ANTES = 'Uma vez por conta Google, antes de usar: aceite os Termos de Serviço em https://console.cloud.google.com e abra https://shell.cloud.google.com até o terminal carregar (ativa o Cloud Shell). Sem isso o projeto não é criado e a VM não liga.';
+
 // confere o login feito na pasta temporária e a move para a pasta da conta (se a conta já existia, troca só as credenciais)
 async function adoptLogin(tmp) {
   const r = await gcloud(['auth', 'list', '--format=value(account)'], { env: gcloudAuthEnv(tmp), timeout: 20000 });
@@ -387,6 +394,7 @@ async function loginCli({ name, importar } = {}) {
     if (!fs.existsSync(configDir(email)) || !(await loggedAccounts(email)).includes(email)) return { ok: false, error: 'Não há login guardado para ' + email + ' em ' + configDir(email) + '. Rode cshub login sem --importar.' };
     return registerAccount(email, nome);
   }
+  process.stdout.write('Lembrete: ' + LOGIN_ANTES + '\n\n');
   fs.mkdirSync(GCLOUD_DIR, { recursive: true, mode: 0o700 });
   const tmp = fs.mkdtempSync(path.join(GCLOUD_DIR, '.login-'));
   const code = await new Promise((resolve) => {
@@ -446,7 +454,7 @@ async function loginLink() {
   for (let i = 0; i < 80; i++) {          // até ~40 s
     await sleep(500);
     const link = fs.existsSync(path.join(PENDING, 'link.txt')) && fs.readFileSync(path.join(PENDING, 'link.txt'), 'utf8').trim();
-    if (link) return { ok: true, link, proximo: 'Abra o link, entre com a conta e rode: cshub login --codigo "<código>" [apelido] --json (o e-mail e o apelido da conta só aparecem depois do código)' };
+    if (link) return { ok: true, link, antes: LOGIN_ANTES, proximo: 'Abra o link, entre com a conta e rode: cshub login --codigo "<código>" [apelido] --json (o e-mail e o apelido da conta só aparecem depois do código)' };
     if (fs.existsSync(path.join(PENDING, 'fim.json'))) break;
   }
   const fim = readJson(path.join(PENDING, 'fim.json'));
@@ -572,22 +580,23 @@ async function update(id, patch) {
 }
 
 // garante login e endereco valido; devolve a conta pronta
-async function prepare(id, { refresh = false } = {}) {
+async function prepare(id, { refresh = false, log = () => {} } = {}) {
   const l = load();
   const acc = find(l, id);
   if (!acc) return { ok: false, error: 'Conta não encontrada' };
   if (!(await ensureLogin(acc.Email))) return { ok: false, error: 'Login no gcloud não concluído' };
   let alive = false;
-  if (!refresh && acc.Host) alive = await sshAlive(acc);
+  if (!refresh && acc.Host) { log('testando a conexão com a VM…'); alive = await sshAlive(acc); }
   if (!alive) {
     try { fs.unlinkSync(knownHosts(acc)); } catch {}
-    const ep = await resolveEndpoint(acc);
+    const ep = await resolveEndpoint(acc, log);
     if (!ep.ok) return { ok: false, error: ep.error };
     acc.User = ep.User; acc.Host = ep.Host; acc.Port = ep.Port;
     save(l);
     // confirma que o SSH aceita a chave (ela pode demorar a propagar)
     let accepted = false;
     for (let i = 0; i < 6 && !accepted; i++) {
+      log(`esperando a VM aceitar a chave SSH (tentativa ${i + 1}/6)…`);
       accepted = await sshAlive(acc);
       if (!accepted) await new Promise((r) => setTimeout(r, 5000));
     }

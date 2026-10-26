@@ -42,6 +42,37 @@ run() {
   bash -c "$*"
 }
 tem() { command -v "$1" >/dev/null 2>&1; }
+# etapa demorada: roda em segundo plano, avisa a cada minuto que segue viva e diz quanto levou
+longo() {
+  local rot="$1"; shift
+  if [ "$SIMULAR" = 1 ]; then run "$@"; return 0; fi
+  local ini=$SECONDS prox=60 d
+  bash -c "$*" </dev/null & local pid=$!
+  while kill -0 "$pid" 2>/dev/null; do
+    sleep 1; d=$((SECONDS - ini))
+    if [ "$d" -ge "$prox" ]; then echo "   … ainda $rot ($((d / 60)) min). Não feche o Termux: isso só demora na primeira vez."; prox=$((prox + 60)); fi
+  done
+  wait "$pid"; local rc=$?
+  d=$((SECONDS - ini)); echo "   ($rot: $((d / 60)) min $((d % 60)) s)"
+  return $rc
+}
+aviso_inicial() {
+  cat <<'EOF2'
+================================================================
+ ANTES DE CADASTRAR AS CONTAS (uma vez por conta Google):
+  1. Abra https://console.cloud.google.com com a conta e aceite
+     os Termos de Serviço.
+  2. Abra https://shell.cloud.google.com com a conta e espere o
+     terminal carregar (isso ativa o Cloud Shell).
+  Sem isso o projeto não é criado e a VM não liga.
+
+ TEMPO: a primeira instalação leva ~30 a 45 min (só o gcloud,
+ ~13 min). Isso só acontece UMA vez: rodar de novo leva segundos.
+ Mantenha o Termux na frente e a tela ligada. Se a tela parecer
+ parada, espere: a cada minuto aparece "… ainda instalando".
+================================================================
+EOF2
+}
 
 detectar_etapa() {
   if [ -n "$ETAPA" ]; then echo "$ETAPA"; return; fi
@@ -52,6 +83,7 @@ detectar_etapa() {
 
 # ---------------------------------------------------------------- etapa 1: Termux
 etapa_termux() {
+  aviso_inicial
   if [ ! -f "$0" ]; then echo "Rode a partir de um arquivo (curl ... -o instalar-android.sh && bash instalar-android.sh)."; exit 2; fi
   passo "Termux: pacotes e Ubuntu (proot-distro)"
   run "pkg update -y && pkg install -y proot-distro curl" || { echo "Falhou o pkg. Termux é o do F-Droid?"; exit 1; }
@@ -63,31 +95,33 @@ etapa_termux() {
   # o cat grava o script dentro do Ubuntu e ele roda do arquivo: não depende de onde o proot-distro guarda o Ubuntu
   # (rodar direto com "bash -s" deixaria apt/npm lerem o resto do script pela entrada padrão)
   if [ "$SIMULAR" = 1 ]; then printf '   [simular] proot-distro login ubuntu -- bash -c "cat > /root/instalar-android.sh && bash /root/instalar-android.sh --etapa ubuntu %s" < %s\n' "${FWD[*]}" "$0"; exit 0; fi
-  exec proot-distro login ubuntu -- bash -c 'cat > /root/instalar-android.sh && exec bash /root/instalar-android.sh "$@" </dev/null' _ --etapa ubuntu "${FWD[@]}" < "$0"
+  exec proot-distro login ubuntu -- bash -c 'cat > /root/instalar-android.sh && CSHUB_DO_TERMUX=1 exec bash /root/instalar-android.sh "$@" </dev/null' _ --etapa ubuntu "${FWD[@]}" < "$0"
 }
 
 # ---------------------------------------------------------------- etapa 2: Ubuntu
 etapa_ubuntu() {
   if [ "$(id -u)" != 0 ] && [ "$SIMULAR" = 0 ]; then echo "Dentro do Ubuntu do proot o usuário é root. Rode como root."; exit 2; fi
   export DEBIAN_FRONTEND=noninteractive   # sem perguntas (fuso etc.)
+  local TOTAL=$SECONDS
+  [ -z "${CSHUB_DO_TERMUX:-}" ] && aviso_inicial
   local BIN=/usr/local/bin
 
-  passo "Base: git, curl, certificados, python3, ssh"
-  if run "apt-get update -y && apt-get install -y git curl ca-certificates python3 build-essential openssh-client gnupg apt-transport-https && update-ca-certificates"; then nota "base: ok"; else nota "base: FALHOU (veja o log)"; fi
+  passo "Base: git, curl, certificados, python3, ssh (~3 a 8 min na primeira vez)"
+  if longo "instalando a base" "apt-get update -y && apt-get install -y git curl ca-certificates python3 build-essential openssh-client gnupg apt-transport-https && update-ca-certificates"; then nota "base: ok"; else nota "base: FALHOU (veja o log)"; fi
 
   passo "Node.js 20 ou mais novo"
   local nv=0; tem node && nv=$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0)
   if [ "$nv" -ge 20 ] 2>/dev/null; then echo "   Node $(node -v) já instalado."; nota "node: ok ($(node -v))"
-  elif run "curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && apt-get install -y nodejs"; then nota "node: instalado"; else nota "node: FALHOU"; fi
+  elif longo "instalando o Node" "curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && apt-get install -y nodejs"; then nota "node: instalado"; else nota "node: FALHOU"; fi
 
-  passo "Google Cloud CLI (gcloud). Demora: no celular, ~13 min"
+  passo "Google Cloud CLI (gcloud): ~13 min no celular, só na primeira vez"
   if tem gcloud; then echo "   gcloud já instalado."; nota "gcloud: ok"
-  elif run "curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg | gpg --dearmor --yes -o /usr/share/keyrings/cloud.google.gpg && echo 'deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main' > /etc/apt/sources.list.d/google-cloud-sdk.list && apt-get update -y && apt-get install -y google-cloud-cli"; then nota "gcloud: instalado (sem login global: o cshub faz um login por conta)"; else nota "gcloud: FALHOU"; fi
+  elif longo "instalando o gcloud" "curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg | gpg --dearmor --yes -o /usr/share/keyrings/cloud.google.gpg && echo 'deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main' > /etc/apt/sources.list.d/google-cloud-sdk.list && apt-get update -y && apt-get install -y google-cloud-cli"; then nota "gcloud: instalado (sem login global: o cshub faz um login por conta)"; else nota "gcloud: FALHOU"; fi
 
   passo "Cloud Shell Hub (cshub)"
   local hub="$HOME/cloudshell-hub"
   if [ -d "$hub/.git" ]; then run "git -C '$hub' pull --ff-only"; else run "git clone '$HUB_REPO' '$hub'"; fi
-  if run "cd '$hub' && npm ci --omit=dev"; then
+  if longo "instalando as dependências do cshub" "cd '$hub' && npm ci --omit=dev"; then
     run "ln -sf '$hub/cshub' '$BIN/cshub'"
     if run "cd '$hub' && npm test >/tmp/cshub-test.log 2>&1"; then nota "cshub: ok (npm test passou)"; else nota "cshub: instalado, mas npm test FALHOU (veja /tmp/cshub-test.log)"; fi
     run "'$BIN/cshub' skill instalar" && nota "skill cloudshell-hub: instalada em ~/.claude/skills"
@@ -95,14 +129,14 @@ etapa_ubuntu() {
 
   if [ "$CLAUDE" = 1 ]; then
     passo "Claude Code (CLI)"
-    if tem claude; then nota "claude: ok"; elif run "npm install -g @anthropic-ai/claude-code"; then nota "claude: instalado"; else nota "claude: FALHOU"; fi
+    if tem claude; then nota "claude: ok"; elif longo "instalando o Claude Code" "npm install -g @anthropic-ai/claude-code"; then nota "claude: instalado"; else nota "claude: FALHOU"; fi
   fi
 
   if [ "$COLAB" = 1 ]; then
-    passo "uv e Colab CLI. Demora: compila em ARM"
+    passo "uv e Colab CLI: compila em ARM, pode levar 10 min ou mais na primeira vez"
     export PATH="$HOME/.local/bin:$PATH"
     tem uv || run "curl -LsSf https://astral.sh/uv/install.sh | sh"
-    if tem colab; then nota "colab: ok"; elif run "\$HOME/.local/bin/uv tool install google-colab-cli"; then nota "colab: instalado (use sempre: timeout 120 colab ... </dev/null)"; else nota "colab: FALHOU"; fi
+    if tem colab; then nota "colab: ok"; elif longo "instalando o Colab CLI" "\$HOME/.local/bin/uv tool install google-colab-cli"; then nota "colab: instalado (use sempre: timeout 120 colab ... </dev/null)"; else nota "colab: FALHOU"; fi
   fi
 
   if [ -n "$REPO" ]; then
@@ -122,11 +156,14 @@ etapa_ubuntu() {
   # ---------------------------------------------------------------- resumo
   printf '\n================ RESUMO%s ================\n' "$([ "$SIMULAR" = 1 ] && echo ' (SIMULAÇÃO: nada foi instalado)')"
   for l in "${RESUMO[@]}"; do printf ' - %s\n' "$l"; done
+  printf ' Tempo total: %d min. Rodar de novo pula o que já está instalado.\n' "$(( (SECONDS - TOTAL) / 60 ))"
   cat <<'EOF'
 
 Próximos passos (logins, feitos por você no navegador):
+  0. Para cada conta Google: aceite os termos em console.cloud.google.com e abra shell.cloud.google.com uma vez
   1. Contas do Cloud Shell, uma por vez:   cshub login          (mostra o link; cole o código no terminal)
   2. Conferir o agy das VMs:               cshub agy-login --todas
+     (agentes: grave a saída do cshub em arquivo; não use "| tail")
   3. GitHub (para --repo):                 gh auth login
   4. Claude (se instalou):                 claude               (faça o login e saia com /exit)
   5. Colab (se instalou):                  timeout 300 colab usage </dev/null
