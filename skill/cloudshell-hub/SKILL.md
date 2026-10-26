@@ -73,6 +73,13 @@ Cuidados:
 ## Excluir uma conta
 `cshub remover <conta> --simular` mostra o que seria feito, sem alterar nada: **rode sempre primeiro e mostre ao usuário**. Só rode sem `--simular` com a confirmação dele, para aquela conta. Remover tira a conta do cadastro e apaga o login local (`~/.cshub/gcloud/<e-mail>/`, depois de revogar). **Ficam:** a VM do Cloud Shell, o login do `agy` nela, os resultados em `~/Documents/<projeto>-nuvem` e o projeto GCP `cshub-<conta>`. `--apagar-projeto` também apaga o projeto GCP (o Google guarda 30 dias; só apaga se o projeto tiver o rótulo `cshub=1`, senão recusa sem alterar nada): use só se o usuário pedir esse apagamento. Para voltar a usar a conta, cadastre de novo com `cshub login`.
 
+## Voltar ao zero (limpeza)
+`cshub zerar` desfaz o que o `cshub` montou. **Sem `--confirmar` ele só simula: rode sempre primeiro, mostre a simulação ao usuário e só execute com a confirmação dele, escopo por escopo.** Escopos (combináveis, ou `--tudo`; `--conta <conta>` limita a uma):
+- `--skill`: apaga a pasta da skill instalada (reversível com `cshub skill instalar`). Faça por último: a IA que está lendo a skill perde o manual na próxima sessão.
+- `--vms`: apaga `~/espelho` e `~/.cshub` de cada VM e a sessão tmux do login do agy, e também os manifestos locais da conta. **Antes, rode `cshub trazer`**: resultados (`.saida`) que não voltaram ao PC se perdem (a simulação avisa). Recusa a VM com tarefa rodando (`--forcar` só se o usuário mandar). A simulação só olha VMs já ligadas; `--confirmar` acorda as suspensas. O login e as configurações do agy ficam.
+- `--projetos-gcp`: apaga os projetos GCP com o rótulo `cshub=1` (o Google guarda 30 dias: `gcloud projects undelete <id>` desfaz) e limpa o campo `Project` da conta. Para criar o projeto de novo: `cshub login --importar <e-mail>`.
+Não são tocados: contas e logins locais (`~/.cshub/gcloud`), resultados em `~/Documents/<projeto>-nuvem` e o login do agy nas VMs. Para apagar uma conta inteira, use `cshub remover`.
+
 ## Cadastrar um projeto
 `cshub projetos` lista; `cshub projeto adicionar <nome> --pasta-pc <pasta do PC>` cadastra um projeto para o espelho sem Git (`--repo <url>` só para o fluxo com Git do app). **Confira o tamanho da pasta antes**: pastas de build (`target`, `.scratchpad`...) não estão na lista padrão de exclusões; use `--excluir target,.scratchpad` (acrescenta à lista padrão), senão o `enviar` leva gigabytes; `cshub projeto remover <nome>` tira do cadastro sem apagar a pasta do PC, o espelho na VM nem os resultados. Depois: `cshub enviar <projeto> <conta>`.
 

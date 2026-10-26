@@ -57,4 +57,13 @@ async function install() {
   return { ok: true, caminho: DST, backup };
 }
 
-module.exports = { status, install, setBase, baseDir, PADRAO, SRC };
+// remove a pasta da skill (SKILL.md e o .bak). Só apaga a pasta chamada cloudshell-hub dentro da pasta de skills.
+function remove({ simular = false } = {}) {
+  const dir = dirOf();
+  if (path.basename(dir) !== NAME) return { ok: false, error: 'Pasta inesperada: ' + dir };
+  const existe = fs.existsSync(dir);
+  if (existe && !simular) fs.rmSync(dir, { recursive: true, force: true });
+  return { ok: true, caminho: dir, existia: existe, removida: existe && !simular };
+}
+
+module.exports = { remove, status, install, setBase, baseDir, PADRAO, SRC };

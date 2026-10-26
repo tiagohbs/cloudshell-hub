@@ -27,6 +27,10 @@ CONTAS
   cshub agy-login <conta>            confere se o agy da VM está logado (--verificar, padrão). O login do agy é separado do gcloud
         [--link]                     passo 1, sem terminal interativo: mostra o link inteiro (sem quebras) do login do agy
         [--codigo <código>]          passo 2: digita o código na VM e confere o login
+  cshub zerar [--skill] [--vms] [--projetos-gcp] [--tudo] [--conta <conta>] [--confirmar] [--forcar]
+        volta ao zero. SEM --confirmar só simula (e só olha VMs já ligadas). --skill: tira a skill instalada; --vms: apaga ~/espelho e ~/.cshub das VMs
+        (o login e as configurações do agy ficam); --projetos-gcp: apaga os projetos com rótulo cshub=1 (o Google guarda 30 dias).
+        Contas, logins locais e resultados no PC não são tocados. --forcar: limpa mesmo com tarefa rodando
   cshub remover <conta> [--simular]  tira a conta do cadastro e apaga o login local (~/.cshub/gcloud/<e-mail>). --simular só mostra o que faria.
         [--apagar-projeto]           também apaga o projeto GCP cshub-<conta> (só se tiver o rótulo cshub=1). A VM e o login do agy nela ficam
   cshub acordar <conta>              liga a VM (se suspensa) e confirma o acesso
@@ -316,6 +320,29 @@ function localAgyHealth() {
         const r = await projects.remove(a2);
         print(r, `Projeto ${a2} removido do cadastro (a pasta do PC, o espelho na VM e os resultados não foram apagados).`);
       } else fail('use: cshub projeto adicionar <nome> --pasta-pc <pasta> | cshub projeto remover <nome>');
+      break;
+    }
+    case 'zerar': {
+      const tudo = flags.has('--tudo');
+      const r = await cs.zerar({ skill: tudo || flags.has('--skill'), vms: tudo || flags.has('--vms'), projetosGcp: tudo || flags.has('--projetos-gcp'), conta: opt.conta, confirmar: flags.has('--confirmar'), forcar: flags.has('--forcar') });
+      if (!r.ok) fail(r.error, r);
+      const kbf = (n) => (n >= 1024 ? (n / 1024).toFixed(1).replace('.', ',') + ' MB' : n + ' KB');
+      const linhas = [];
+      for (const it of r.itens) {
+        if (it.tipo === 'skill') linhas.push(`skill: ${it.existia ? (r.simulado ? 'apagaria ' : 'apagada: ') + it.caminho : 'não estava instalada (' + it.caminho + ')'}`);
+        else if (it.tipo === 'vm') {
+          const cab = `VM ${it.conta}: `;
+          if (it.pula) linhas.push(cab + 'pulada (' + it.pula + ')');
+          else if (it.nota) linhas.push(cab + it.nota);
+          else if (it.bloqueado) linhas.push(cab + 'NÃO limpa: ' + it.bloqueado);
+          else linhas.push(cab + (it.limpa ? 'limpa. ' : 'apagaria ') + `espelho(s): ${it.espelhos.map((e) => `${e.pasta} ${kbf(e.kb)}`).join(', ') || 'nenhum'}; ~/.cshub ${kbf(it.cshubKb)}${it.tmux ? '; sessão tmux do login do agy' : ''}` + it.avisos.map((a) => `\n    AVISO: ${a}`).join(''));
+        } else if (it.tipo === 'projetos-gcp') {
+          const cab = `GCP ${it.conta}: `;
+          if (it.pula) linhas.push(cab + 'pulada (' + it.pula + ')');
+          else linhas.push(cab + (it.projetos.length ? (r.simulado ? 'apagaria ' : 'apagados: ') + (r.simulado ? it.projetos : it.apagados).join(', ') : 'nenhum projeto com o rótulo cshub=1') + it.avisos.map((a) => `\n    AVISO: ${a}`).join(''));
+        }
+      }
+      print(r, (r.simulado ? 'SIMULAÇÃO (nada foi alterado). Para executar, repita o comando com --confirmar.\n' : 'Feito:\n') + linhas.map((x) => '  - ' + x).join('\n') + '\nNão são tocados: contas, logins locais (~/.cshub/gcloud), resultados no PC, o login e as configurações do agy nas VMs.');
       break;
     }
     case '_login-ajudante':   // uso interno de login --link

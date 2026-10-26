@@ -855,4 +855,80 @@ async function agyLoginCode(id, code, { env = '' } = {}) {
   return c.logado ? { ok: true, logado: true } : { ok: false, error: 'O agy ainda não está logado depois do código. O código vale uma vez só: rode cshub agy-login <conta> --link de novo.' + (c.resposta ? ' Resposta do agy: ' + c.resposta : '') };
 }
 
-module.exports = { openWeb, chromeExe, profileDir, cancelLogin, list, status, add, removeAccount, agyCheck, agyLoginLink, agyLoginCode, preparar, getPrefs, setPrefs, loginCli, loginLink, loginCode, loginHelper, ensureProject, configDir, remove, update, refreshEndpoint, tmuxList, open, copyCommand, prepare, sshBase, remoteFor, metrics, stopVm, parseMetrics, sshExec, reservedReason, setLocal, getLocal };
+// ---------- voltar ao zero (cshub zerar) ----------
+// Sem confirmar, só SIMULA (e só olha as VMs que já estão ligadas). Escopos: skill, vms (espelhos, ~/.cshub e a sessão tmux do login do agy;
+// o login e as configurações do agy ficam), projetosGcp (projetos com o rótulo cshub=1). Contas, logins locais e resultados no PC não são tocados.
+const MIRROR_KEY = (acc) => String(acc).replace(/[^\w.-]/g, '_');
+const VM_INSPECT_SH = `cd "$HOME"; echo "@@ESPELHO"; for d in espelho/*/; do [ -d "$d" ] && echo "$(du -sk "$d" | cut -f1) $(du -sk "$d.saida" 2>/dev/null | cut -f1) $d"; done; echo "@@RODANDO"; b=$(( $(date +%s) - $(cut -d. -f1 /proc/uptime) )); find .cshub/rodando -type f -newermt "@$b" 2>/dev/null | wc -l; echo "@@TMUX"; tmux ls 2>/dev/null | grep -c '^cshub-agy-login:'; echo "@@CSHUB"; du -sk .cshub 2>/dev/null | cut -f1; echo "@@FIM"`;
+const VM_WIPE_SH = `tmux kill-session -t ${AGY_TMUX} 2>/dev/null; rm -rf "$HOME/espelho" "$HOME/.cshub"; echo @@LIMPO`;
+const kb = (n) => (Number(n) >= 1024 ? (Number(n) / 1024).toFixed(1).replace('.', ',') + ' MB' : Number(n || 0) + ' KB');
+
+function parseInspect(out) {
+  const sec = (n) => { const m = out.match(new RegExp('@@' + n + '\\r?\\n([\\s\\S]*?)(?=@@|$)')); return m ? m[1].trim() : ''; };
+  const espelhos = sec('ESPELHO').split(/\r?\n/).filter(Boolean).map((l) => { const m = l.match(/^(\d+)\s+(\d*)\s*(\S+)$/); return m ? { pasta: m[3].replace(/\/$/, ''), kb: Number(m[1]), saidaKb: Number(m[2] || 0) } : null; }).filter(Boolean);
+  return { espelhos, rodando: Number(sec('RODANDO')) || 0, tmux: Number(sec('TMUX')) || 0, cshubKb: Number(sec('CSHUB')) || 0 };
+}
+
+async function zerar({ skill = false, vms = false, projetosGcp = false, conta = null, confirmar = false, forcar = false } = {}) {
+  if (!skill && !vms && !projetosGcp) return { ok: false, error: 'Escolha o que zerar: --skill, --vms, --projetos-gcp ou --tudo' };
+  const l = load();
+  let alvo = l;
+  if (conta) { const a = find(l, conta); if (!a) return { ok: false, error: 'Conta não encontrada: ' + conta }; alvo = [a]; }
+  const itens = [];
+  let mudouCadastro = false;
+
+  if (vms) {
+    for (const acc of alvo) {
+      const it = { tipo: 'vm', conta: acc.Name, avisos: [] };
+      itens.push(it);
+      const st = await status(acc.Name);
+      if (st.logged === false) { it.pula = 'sem login no gcloud'; continue; }
+      if (st.state !== 'RUNNING' && !confirmar) { it.nota = 'VM ' + (st.state === 'SUSPENDED' ? 'suspensa' : (st.state || 'parada')) + ': não inspecionei (confirmar acorda a VM)'; continue; }
+      const r = await sshExec(acc.Name, VM_INSPECT_SH, { timeout: 180000 });
+      if (!r.ok) { it.pula = r.error; continue; }
+      const info = parseInspect(r.out);
+      Object.assign(it, info);
+      if (info.rodando && !forcar) { it.bloqueado = `${info.rodando} tarefa(s) rodando (cancele com cshub cancelar ou use --forcar)`; continue; }
+      if (info.espelhos.some((e) => e.saidaKb > 0)) it.avisos.push('há resultados (.saida) no espelho: rode cshub trazer antes, senão se perdem');
+      if (confirmar) {
+        const w = await sshExec(acc.Name, VM_WIPE_SH, { timeout: 180000 });
+        if (!w.ok || !/@@LIMPO/.test(w.out)) { it.pula = 'não consegui limpar a VM: ' + (w.error || w.out.trim().slice(-160)); continue; }
+        it.limpa = true;
+        const dirM = path.join(os.homedir(), '.cshub', 'manifest');
+        try { for (const f of fs.readdirSync(dirM)) if (f.endsWith(`__${MIRROR_KEY(acc.Name)}.json`)) fs.unlinkSync(path.join(dirM, f)); } catch {}
+        if (acc.Agy) { delete acc.Agy; mudouCadastro = true; }   // a preparação do agy roda de novo no próximo uso
+      }
+    }
+  }
+
+  if (projetosGcp) {
+    for (const acc of alvo) {
+      const it = { tipo: 'projetos-gcp', conta: acc.Name, projetos: [], avisos: [] };
+      itens.push(it);
+      if (!fs.existsSync(configDir(acc.Email))) { it.pula = 'sem login local da conta'; continue; }
+      const g = (args) => gcloudFor(acc.Email, args, { timeout: 120000 });
+      const ls = await g(['projects', 'list', `--filter=${PROJECT_FILTER}`, '--format=value(projectId)']);
+      if (ls.code !== 0) { it.pula = 'não consegui listar os projetos: ' + ls.out.trim().slice(-160); continue; }
+      it.projetos = ls.out.split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
+      if (!confirmar) continue;
+      it.apagados = [];
+      for (const id of it.projetos) {
+        const d = await g(['projects', 'delete', id, '--quiet']);
+        if (d.code === 0) it.apagados.push(id); else it.avisos.push(`não consegui apagar ${id}: ${d.out.trim().slice(-120)}`);
+      }
+      if (it.apagados.length) {
+        await g(['config', 'unset', 'project']);
+        if (acc.Project && it.apagados.includes(acc.Project)) { delete acc.Project; mudouCadastro = true; }
+      }
+    }
+  }
+  if (mudouCadastro) save(l);
+
+  if (skill) {
+    const sk = require('./skill').remove({ simular: !confirmar });
+    itens.push({ tipo: 'skill', ...sk });
+  }
+  return { ok: true, simulado: !confirmar, itens };
+}
+
+module.exports = { openWeb, chromeExe, profileDir, cancelLogin, list, status, add, zerar, removeAccount, agyCheck, agyLoginLink, agyLoginCode, preparar, getPrefs, setPrefs, loginCli, loginLink, loginCode, loginHelper, ensureProject, configDir, remove, update, refreshEndpoint, tmuxList, open, copyCommand, prepare, sshBase, remoteFor, metrics, stopVm, parseMetrics, sshExec, reservedReason, setLocal, getLocal, _zerar: { VM_INSPECT_SH, VM_WIPE_SH, parseInspect } };
